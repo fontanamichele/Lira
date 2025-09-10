@@ -34,7 +34,7 @@ export default function Home() {
     }
 
     checkUser()
-  }, [router, supabase.auth])
+  }, [router, supabase])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

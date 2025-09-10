@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database'
 import MainLayout from '@/components/layout/MainLayout'
@@ -26,8 +26,21 @@ export default function DashboardPage() {
   const [ratesLoading, setRatesLoading] = useState(false)
   const supabase = createClient()
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchExchangeRates = useCallback(async () => {
+    if (!profile?.main_currency) return
+
+    setRatesLoading(true)
+    try {
+      const rates = await getExchangeRates(profile.main_currency)
+      setExchangeRates(rates)
+    } catch (error) {
+      console.error('Error fetching exchange rates:', error)
+    } finally {
+      setRatesLoading(false)
+    }
+  }, [profile?.main_currency])
+
+  const fetchData = useCallback(async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
@@ -70,30 +83,17 @@ export default function DashboardPage() {
           document.body.classList.add('animations-complete')
         }, 100)
       }
-    }
+    }, [supabase])
 
+  useEffect(() => {
     fetchData()
-  }, [supabase])
+  }, [fetchData])
 
   useEffect(() => {
     if (profile?.main_currency) {
       fetchExchangeRates()
     }
-  }, [profile])
-
-  const fetchExchangeRates = async () => {
-    if (!profile?.main_currency) return
-
-    setRatesLoading(true)
-    try {
-      const rates = await getExchangeRates(profile.main_currency)
-      setExchangeRates(rates)
-    } catch (error) {
-      console.error('Error fetching exchange rates:', error)
-    } finally {
-      setRatesLoading(false)
-    }
-  }
+  }, [profile, fetchExchangeRates])
 
   // Calculate total balance converted to main currency
   const calculateTotalBalance = (): number => {
@@ -104,7 +104,7 @@ export default function DashboardPage() {
         const convertedAmount = convertCurrency(
           balance.current_balance,
           balance.currency,
-          profile?.main_currency!,
+          profile?.main_currency || 'USD',
           exchangeRates
         )
         return accountTotal + convertedAmount
@@ -119,7 +119,7 @@ export default function DashboardPage() {
       const convertedAmount = convertCurrency(
         balance.current_balance,
         balance.currency,
-        profile?.main_currency!,
+          profile?.main_currency || 'USD',
         exchangeRates
       )
       return total + convertedAmount
@@ -139,7 +139,7 @@ export default function DashboardPage() {
         const convertedAmount = convertCurrency(
           transaction.amount,
           transaction.currency,
-          profile?.main_currency!,
+          profile?.main_currency || 'USD',
           exchangeRates
         )
         return total + convertedAmount
@@ -158,7 +158,7 @@ export default function DashboardPage() {
         const convertedAmount = convertCurrency(
           transaction.amount,
           transaction.currency,
-          profile?.main_currency!,
+          profile?.main_currency || 'USD',
           exchangeRates
         )
         return total + convertedAmount
@@ -197,7 +197,7 @@ export default function DashboardPage() {
               Welcome back{profile?.nickname ? `, ${profile.nickname}` : ''}! 👋
             </h1>
             <p className="text-muted-foreground text-lg">
-              Here's an overview of your financial situation
+              Here&apos;s an overview of your financial situation
             </p>
           </div>
         </div>

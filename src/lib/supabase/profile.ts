@@ -22,7 +22,8 @@ export async function ensureProfile(userId: string): Promise<Profile | null> {
     if (fetchError?.code === 'PGRST116') { // No rows returned
       console.log('No profile found, creating one for user:', userId)
       
-      const { data: newProfile, error: createError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: newProfile, error: createError } = await (supabase as any)
         .from('profiles')
         .insert({
           id: userId,

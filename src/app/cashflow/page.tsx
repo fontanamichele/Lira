@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database'
 import MainLayout from '@/components/layout/MainLayout'
@@ -26,11 +26,7 @@ export default function CashflowPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -64,16 +60,46 @@ export default function CashflowPage() {
         document.body.classList.add('animations-complete')
       }, 100)
     }
-  }
+  }, [supabase])
 
-  const handleSubmit = async (formData: any) => {
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const handleSubmit = async (formData: {
+    account_id: string
+    account_balance_id: string
+    type: 'income' | 'expense' | 'transfer'
+    amount: number
+    currency: string
+    description?: string | null
+    category?: string | null
+    date: string
+    to_account_id?: string | null
+    to_account_balance_id?: string | null
+    to_amount?: number | null
+    to_currency?: string | null
+  }) => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
       if (editingTransaction) {
         // Update existing transaction
-        const updateData: any = {
+        const updateData: {
+          account_id: string
+          account_balance_id: string
+          type: 'income' | 'expense' | 'transfer'
+          amount: number
+          currency: string
+          description?: string | null
+          category?: string | null
+          date: string
+          to_account_id?: string | null
+          to_account_balance_id?: string | null
+          to_amount?: number | null
+          to_currency?: string | null
+        } = {
           account_id: formData.account_id,
           account_balance_id: formData.account_balance_id,
           type: formData.type,
@@ -92,6 +118,7 @@ export default function CashflowPage() {
           updateData.to_currency = formData.to_currency
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from('transactions')
           .update(updateData)
@@ -100,7 +127,21 @@ export default function CashflowPage() {
         if (error) throw error
       } else {
         // Create new transaction
-        const insertData: any = {
+        const insertData: {
+          user_id: string
+          account_id: string
+          account_balance_id: string
+          type: 'income' | 'expense' | 'transfer'
+          amount: number
+          currency: string
+          description?: string | null
+          category?: string | null
+          date: string
+          to_account_id?: string | null
+          to_account_balance_id?: string | null
+          to_amount?: number | null
+          to_currency?: string | null
+        } = {
           user_id: user.id,
           account_id: formData.account_id,
           account_balance_id: formData.account_balance_id,
@@ -120,6 +161,7 @@ export default function CashflowPage() {
           insertData.to_currency = formData.to_currency
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from('transactions')
           .insert(insertData)

@@ -138,6 +138,7 @@ export default function OnboardingPage() {
 
     try {
       // Update profile
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: profileError } = await (supabase as any)
         .from('profiles')
         .update({
@@ -151,6 +152,7 @@ export default function OnboardingPage() {
       // Create bank accounts and their balances
       for (const account of bankAccounts) {
         // Create the account
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: accountData, error: accountError } = await (supabase as any)
           .from('accounts')
           .insert({
@@ -170,6 +172,7 @@ export default function OnboardingPage() {
           current_balance: currency.amount,
         }))
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: balancesError } = await (supabase as any)
           .from('account_balances')
           .insert(balancesToInsert)
@@ -178,8 +181,9 @@ export default function OnboardingPage() {
       }
 
       router.push('/dashboard')
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during setup')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred during setup'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -197,7 +201,7 @@ export default function OnboardingPage() {
             <h1 className="text-5xl font-bold gradient-primary bg-clip-text text-transparent mb-2">Lira</h1>
             <div className="w-20 h-1 bg-primary mx-auto rounded-full"></div>
           </div>
-          <h2 className="text-3xl font-semibold text-foreground mb-2">Welcome! Let's set up your account</h2>
+          <h2 className="text-3xl font-semibold text-foreground mb-2">Welcome! Let&apos;s set up your account</h2>
           <p className="text-muted-foreground text-lg">Step {step} of 3</p>
           
           {/* Progress bar */}

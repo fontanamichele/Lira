@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ensureProfile } from '@/lib/supabase/profile'
 import { Database } from '@/types/database'
@@ -52,11 +52,7 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchProfile()
-  }, [])
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -78,9 +74,10 @@ export default function SettingsPage() {
       } else {
         setError('Failed to load or create profile')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching profile:', error)
-      setError(`Failed to load profile: ${error.message || 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      setError(`Failed to load profile: ${errorMessage}`)
     } finally {
       setLoading(false)
       // Delay animations to ensure smooth transition
@@ -89,7 +86,11 @@ export default function SettingsPage() {
         document.body.classList.add('animations-complete')
       }, 100)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchProfile()
+  }, [fetchProfile])
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,6 +102,7 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from('profiles')
         .update({
@@ -113,8 +115,9 @@ export default function SettingsPage() {
 
       setMessage('Profile updated successfully!')
       fetchProfile()
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while updating your profile')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred while updating your profile'
+      setError(errorMessage)
     } finally {
       setSaving(false)
     }
@@ -152,8 +155,9 @@ export default function SettingsPage() {
         confirmPassword: ''
       })
       setShowPasswordForm(false)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while updating your password')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred while updating your password'
+      setError(errorMessage)
     } finally {
       setSaving(false)
     }

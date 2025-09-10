@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database'
 
@@ -16,14 +16,23 @@ interface AccountWithBalances extends Account {
 interface TransactionFormProps {
   accounts: AccountWithBalances[]
   editingTransaction?: Transaction | null
-  onSubmit: (formData: any) => Promise<void>
+  onSubmit: (formData: {
+    account_id: string
+    account_balance_id: string
+    type: 'income' | 'expense' | 'transfer'
+    amount: number
+    currency: string
+    description?: string | null
+    category?: string | null
+    date: string
+    to_account_id?: string | null
+    to_account_balance_id?: string | null
+    to_amount?: number | null
+    to_currency?: string | null
+  }) => Promise<void>
   onCancel: () => void
 }
 
-const CURRENCIES = [
-  'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'SEK', 'NOK',
-  'DKK', 'PLN', 'CZK', 'HUF', 'RUB', 'BRL', 'INR', 'KRW', 'SGD', 'HKD'
-]
 
 const EXPENSE_CATEGORIES = [
   'Food & Dining',
@@ -79,9 +88,26 @@ export default function TransactionForm({ accounts, editingTransaction, onSubmit
   const [isSubmitting, setIsSubmitting] = useState(false)
   const supabase = createClient()
 
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      setUserProfile(profileData)
+    } catch (error) {
+      console.error('Error fetching user profile:', error)
+    }
+  }, [supabase])
+
   useEffect(() => {
     fetchUserProfile()
-  }, [])
+  }, [fetchUserProfile])
 
   useEffect(() => {
     if (editingTransaction) {
@@ -102,40 +128,15 @@ export default function TransactionForm({ accounts, editingTransaction, onSubmit
     }
   }, [editingTransaction])
 
-  const fetchUserProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      setUserProfile(profileData)
-    } catch (error) {
-      console.error('Error fetching user profile:', error)
-    }
-  }
-
   const getSelectedAccount = () => {
     return accounts.find(acc => acc.id === formData.account_id)
   }
 
-  const getSelectedBalance = () => {
-    const account = getSelectedAccount()
-    return account?.balances.find(b => b.id === formData.account_balance_id)
-  }
 
   const getToAccount = () => {
     return accounts.find(acc => acc.id === formData.to_account_id)
   }
 
-  const getToBalance = () => {
-    const account = getToAccount()
-    return account?.balances.find(b => b.id === formData.to_account_balance_id)
-  }
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}

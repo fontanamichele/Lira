@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database'
 import MainLayout from '@/components/layout/MainLayout'
@@ -41,17 +41,7 @@ export default function AccountsPage() {
   } | null>(null)
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchAccounts()
-  }, [])
-
-  useEffect(() => {
-    if (userProfile?.main_currency) {
-      fetchExchangeRates()
-    }
-  }, [userProfile])
-
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -86,9 +76,9 @@ export default function AccountsPage() {
         document.body.classList.add('animations-complete')
       }, 100)
     }
-  }
+  }, [supabase])
 
-  const fetchExchangeRates = async () => {
+  const fetchExchangeRates = useCallback(async () => {
     if (!userProfile?.main_currency) return
 
     setRatesLoading(true)
@@ -100,7 +90,17 @@ export default function AccountsPage() {
     } finally {
       setRatesLoading(false)
     }
-  }
+  }, [userProfile?.main_currency])
+
+  useEffect(() => {
+    fetchAccounts()
+  }, [fetchAccounts])
+
+  useEffect(() => {
+    if (userProfile?.main_currency) {
+      fetchExchangeRates()
+    }
+  }, [userProfile, fetchExchangeRates])
 
   const countTransactionsForAccountBalance = async (accountBalanceId: string): Promise<number> => {
     try {
@@ -148,11 +148,10 @@ export default function AccountsPage() {
 
       if (editingAccount) {
         // Update existing account
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from('accounts')
-          .update({
-            name: formData.name,
-          })
+          .update({ name: formData.name })
           .eq('id', editingAccount.id)
 
         if (error) throw error
@@ -175,16 +174,16 @@ export default function AccountsPage() {
           
           if (isExistingCurrency) {
             // For existing currencies, only update if currency changed (not amount)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: balanceError } = await (supabase as any)
               .from('account_balances')
-              .update({
-                currency: currency.currency,
-              })
+              .update({ currency: currency.currency })
               .eq('id', existingCurrencyIds[i])
 
             if (balanceError) throw balanceError
           } else {
             // For new currencies, create new balance record
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: balanceError } = await (supabase as any)
               .from('account_balances')
               .insert({
@@ -199,6 +198,7 @@ export default function AccountsPage() {
         }
       } else {
         // Create new account
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: accountData, error: accountError } = await (supabase as any)
           .from('accounts')
           .insert({
@@ -218,6 +218,7 @@ export default function AccountsPage() {
           current_balance: currency.amount,
         }))
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: balancesError } = await (supabase as any)
           .from('account_balances')
           .insert(balancesToInsert)
