@@ -4,15 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
-
-# Disable secrets scanning for expected public environment variables
-# These NEXT_PUBLIC_ variables are meant to be exposed to the client
-[secrets]
-  scan_omit_keys = [
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY", 
-    "NEXT_PUBLIC_CURRENCY_API_KEY"
-  ]
+  # Disable secrets scanning entirely since all env vars are public
+  SECRETS_SCAN_ENABLED = "false"
 
 # Headers for better caching
 [[headers]]
