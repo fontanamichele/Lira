@@ -16,7 +16,7 @@ A modern Next.js application for tracking personal cashflow with Supabase integr
 - **Styling**: Tailwind CSS with custom theme
 - **Database**: Supabase (PostgreSQL)
 - **Authentication**: Supabase Auth
-- **Currency API**: [FreecurrencyAPI](https://freecurrencyapi.com/) for real-time exchange rates
+- **Currency API**: Custom currency rate API provider for real-time exchange rates
 - **Icons**: Lucide React
 - **UI Components**: Radix UI primitives
 
@@ -24,10 +24,12 @@ A modern Next.js application for tracking personal cashflow with Supabase integr
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - Supabase account
-- [FreecurrencyAPI](https://freecurrencyapi.com/) account (free tier available)
+- Custom currency rate API provider with the following endpoints:
+  - `GET /prices/current?tickers={ticker1,ticker2}&currency={currency}`
+  - `GET /prices/historical?tickers={ticker1,ticker2}&currency={currency}&period={period}&interval={interval}`
 
 ### 1. Clone the repository
 
@@ -56,15 +58,26 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 ### 4. Set up Currency API
 
-1. Sign up for a free account at [FreecurrencyAPI](https://freecurrencyapi.com/)
-2. Get your API key from the dashboard
-3. Add the API key to your `.env.local` file:
+1. Configure your currency rate API provider domain in your `.env.local` file:
 
 ```env
-NEXT_PUBLIC_CURRENCY_API_KEY=your_currency_api_key
+NEXT_PUBLIC_CURRENCY_API_URL=https://your-currency-api-provider.com
 ```
 
-**Note**: The free tier provides 5,000 requests per month, which is sufficient for most personal use cases.
+The API provider should support the following endpoints:
+
+- **Current rates**: `GET /prices/current?tickers={ticker1}&tickers={ticker2}&currency={currency}`
+- **Historical rates**: `GET /prices/historical?tickers={ticker1}&tickers={ticker2}&currency={currency}&period={period}&interval={interval}`
+
+**Ticker format**: For currency conversion, use the format `{CURRENCY}USD=X` (e.g., `EURUSD=X` for EUR to USD conversion).
+
+**Example API calls**:
+
+- EUR to USD: `/prices/current?tickers=EURUSD%3DX&currency=EUR`
+- USD to EUR: `/prices/current?tickers=USDUSD%3DX&currency=EUR`
+- CHF to EUR: `/prices/current?tickers=CHFUSD%3DX&currency=EUR`
+
+**Note**: Exchange rates are cached for 24 hours to minimize API usage and improve performance.
 
 ### 5. Set up the database
 
@@ -115,18 +128,21 @@ All tables include Row Level Security (RLS) policies to ensure users can only ac
 ## Features Overview
 
 ### Authentication Flow
+
 1. User signs up with email/password
 2. Automatic profile creation
 3. Onboarding flow to set nickname, currency, and bank accounts
 4. Redirect to dashboard
 
 ### Dashboard
+
 - Total balance across all accounts (converted to user's main currency)
 - Recent income and expenses
 - Account overview with converted totals
 - Recent transactions
 
 ### Account Management
+
 - Add multiple bank accounts with multiple currencies per account
 - Set initial amounts for each currency
 - Real-time currency conversion to user's main currency
@@ -134,6 +150,7 @@ All tables include Row Level Security (RLS) policies to ensure users can only ac
 - Delete accounts (with confirmation)
 
 ### Cashflow Tracking
+
 - Add income and expense transactions
 - Categorize transactions
 - Link transactions to specific accounts and currencies
@@ -141,6 +158,7 @@ All tables include Row Level Security (RLS) policies to ensure users can only ac
 - Multi-currency transaction support
 
 ### Settings
+
 - Update profile information
 - Change password
 - View account information
@@ -148,12 +166,21 @@ All tables include Row Level Security (RLS) policies to ensure users can only ac
 ## Customization
 
 ### Theme Colors
+
 The app uses a custom theme defined in `tailwind.config.ts`. You can modify the color palette by updating the CSS variables in `src/app/globals.css`.
 
 ### Currency Support
-The app supports 20+ major currencies with real-time exchange rate conversion. You can add more currencies by updating the `CURRENCIES` arrays in the relevant components. Exchange rates are automatically fetched from [FreecurrencyAPI](https://freecurrencyapi.com/) and cached for 24 hours to minimize API usage.
+
+The app supports 20+ major currencies with real-time exchange rate conversion. You can add more currencies by updating the `CURRENCIES` arrays in the relevant components. Exchange rates are automatically fetched from your configured currency rate API provider and cached for 24 hours to minimize API usage.
+
+The currency conversion system uses the following ticker format:
+
+- For currency pairs like EUR/USD, the ticker is `EURUSD=X`
+- The API returns prices in the specified currency parameter
+- Historical data is available through the `/prices/historical` endpoint
 
 ### Categories
+
 Transaction categories can be customized by updating the `CATEGORIES` array in `src/app/cashflow/page.tsx`.
 
 ## Contributing
