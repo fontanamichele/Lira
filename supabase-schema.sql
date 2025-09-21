@@ -133,7 +133,8 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, nickname, main_currency)
-  VALUES (NEW.id, NULL, NULL);
+  VALUES (NEW.id, NULL, NULL)
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
