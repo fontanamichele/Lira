@@ -20,9 +20,15 @@ export interface AssetRates {
 
 export interface CurrencyPriceData {
   ticker: string;
-  price: number;
+  date?: string;
+  timestamp?: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+  price?: number;
   currency: string;
-  timestamp: string;
 }
 
 // Cache for asset rates to avoid excessive API calls
@@ -142,7 +148,11 @@ export async function getAssetRates(
             }
 
             if (asset && asset !== baseCurrency) {
-              assetRates[asset] = priceData.price;
+              // Use close price if available, otherwise use price
+              const rateValue = priceData.close || priceData.price;
+              if (rateValue !== undefined) {
+                assetRates[asset] = rateValue;
+              }
             }
           });
         }
@@ -224,7 +234,6 @@ export function convertCurrency(
   }
 
   // Fallback: assume 1:1 conversion
-  console.warn(`No exchange rate found for ${fromAsset} to ${toAsset}`);
   return amount;
 }
 
@@ -300,18 +309,13 @@ export async function getHistoricalAssetRates(
         if (Array.isArray(data)) {
           allHistoricalData.push(...data);
         }
-      } catch (categoryError) {
-        console.warn(
-          `Error fetching historical rates for ${category}:`,
-          categoryError
-        );
+      } catch {
         // Continue with other categories
       }
     }
 
     return allHistoricalData;
-  } catch (error) {
-    console.error("Error fetching historical asset rates:", error);
+  } catch {
     return [];
   }
 }

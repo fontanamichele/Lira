@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Database } from "@/types/database";
 import MainLayout from "@/components/layout/MainLayout";
+import HistoricalChart from "@/components/HistoricalChart";
 import { TrendingUp, TrendingDown, CreditCard, DollarSign } from "lucide-react";
 import {
   getAssetRates,
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>(
     []
   );
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [animationsReady, setAnimationsReady] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<AssetRates | null>(null);
@@ -87,9 +89,17 @@ export default function DashboardPage() {
         .order("date", { ascending: false })
         .limit(5);
 
+      // Fetch all transactions for historical chart
+      const { data: allTransactionsData } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("date", { ascending: true });
+
       setProfile(profileData);
       setAccounts(accountsData || []);
       setRecentTransactions(transactionsData || []);
+      setAllTransactions(allTransactionsData || []);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -153,7 +163,7 @@ export default function DashboardPage() {
     const oneMonthAgo = new Date();
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
-    return recentTransactions
+    return allTransactions
       .filter((t) => t.type === "income" && new Date(t.date) >= oneMonthAgo)
       .reduce((total, transaction) => {
         const convertedAmount = convertCurrency(
@@ -172,7 +182,7 @@ export default function DashboardPage() {
     const oneMonthAgo = new Date();
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
-    return recentTransactions
+    return allTransactions
       .filter((t) => t.type === "expense" && new Date(t.date) >= oneMonthAgo)
       .reduce((total, transaction) => {
         const convertedAmount = convertCurrency(
@@ -322,13 +332,27 @@ export default function DashboardPage() {
            */}
         </div>
 
+        {/* Historical Chart */}
+        <div
+          className={`transition-all duration-300 ${
+            animationsReady ? "animate-slide-in-up" : "opacity-0"
+          }`}
+          style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
+        >
+          <HistoricalChart
+            accounts={accounts}
+            transactions={allTransactions}
+            mainCurrency={mainCurrency}
+          />
+        </div>
+
         {/* Accounts Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div
             className={`card-elevated p-6 transition-all duration-300 ${
               animationsReady ? "animate-slide-in-right" : "opacity-0"
             }`}
-            style={{ animationDelay: animationsReady ? "0.5s" : "0s" }}
+            style={{ animationDelay: animationsReady ? "0.6s" : "0s" }}
           >
             <h2 className="text-xl font-semibold text-foreground mb-6 flex items-center">
               <CreditCard className="h-5 w-5 mr-2 text-primary" />
@@ -380,7 +404,7 @@ export default function DashboardPage() {
             className={`card-elevated p-6 transition-all duration-300 ${
               animationsReady ? "animate-slide-in-right" : "opacity-0"
             }`}
-            style={{ animationDelay: animationsReady ? "0.6s" : "0s" }}
+            style={{ animationDelay: animationsReady ? "0.7s" : "0s" }}
           >
             <h2 className="text-xl font-semibold text-foreground mb-6 flex items-center">
               <TrendingUp className="h-5 w-5 mr-2 text-primary" />

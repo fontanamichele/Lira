@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -107,7 +108,6 @@ export default function CashflowPage() {
         // Income: auto-create balance for the selected asset
         if (!sourceBalanceId && formData.currency) {
           const sourceCategory = findAssetCategory(formData.currency);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: upsertSource, error: upsertSourceErr } = await (
             supabase as any
           )

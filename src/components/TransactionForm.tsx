@@ -179,12 +179,6 @@ export default function TransactionForm({
       if (formData.to_amount <= 0) {
         newErrors.to_amount = "Received amount must be greater than 0";
       }
-      if (
-        formData.account_id === formData.to_account_id &&
-        formData.currency === formData.to_asset_ticker
-      ) {
-        newErrors.to_account_id = "Source and destination must be different";
-      }
     }
 
     // Amount validation (real-time validation already handles this, but we check for any existing errors)
