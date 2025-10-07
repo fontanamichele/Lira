@@ -1,11 +1,21 @@
-// Currency conversion utilities using custom currency rate API provider
+// Asset price conversion utilities using custom API provider
 // Configure your API provider domain in environment variables
+import {
+  getCurrencyCodes,
+  ASSETS,
+  AssetCategory,
+  findAssetCategory,
+} from "@/lib/assets";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_CURRENCY_API_URL || "https://your-api-provider.com";
 
 export interface ExchangeRates {
-  [currency: string]: number;
+  [asset: string]: number;
+}
+
+export interface AssetRates {
+  [asset: string]: number;
 }
 
 export interface CurrencyPriceData {
@@ -15,243 +25,351 @@ export interface CurrencyPriceData {
   timestamp: string;
 }
 
-// Cache for exchange rates to avoid excessive API calls
+// Cache for asset rates to avoid excessive API calls
 let ratesCache: {
-  data: ExchangeRates | null;
+  data: AssetRates | null;
   timestamp: number;
   baseCurrency: string;
+  requestedAssets: string[];
 } = {
   data: null,
   timestamp: 0,
   baseCurrency: "",
+  requestedAssets: [],
 };
 
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-export async function getExchangeRates(
+// New function to get rates for specific assets that have balances
+export async function getAssetRates(
+  assetsWithBalances: string[],
   baseCurrency: string = "USD"
-): Promise<ExchangeRates> {
-  // Check if we have valid cached data
+): Promise<AssetRates> {
+  if (assetsWithBalances.length === 0) {
+    return { [baseCurrency]: 1 };
+  }
+
+  // Check if we have valid cached data for the same assets
   const now = Date.now();
+  const sortedRequestedAssets = [...assetsWithBalances].sort();
+  const sortedCachedAssets = [...(ratesCache.requestedAssets || [])].sort();
+
   if (
     ratesCache.data &&
     ratesCache.baseCurrency === baseCurrency &&
-    now - ratesCache.timestamp < CACHE_DURATION
+    now - ratesCache.timestamp < CACHE_DURATION &&
+    JSON.stringify(sortedRequestedAssets) === JSON.stringify(sortedCachedAssets)
   ) {
     return ratesCache.data;
   }
 
   try {
-    // Get exchange rates for major currencies against the base currency
-    const currencies = [
-      "USD",
-      "EUR",
-      "GBP",
-      "JPY",
-      "CAD",
-      "AUD",
-      "CHF",
-      "CNY",
-      "SEK",
-      "NOK",
-      "DKK",
-      "PLN",
-      "CZK",
-      "HUF",
-      "RUB",
-      "BRL",
-      "INR",
-      "KRW",
-      "SGD",
-      "HKD",
-    ];
-    const targetCurrencies = currencies.filter((c) => c !== baseCurrency);
+    // Group assets by category for different API endpoints
+    const assetsByCategory: Record<AssetCategory, string[]> = {
+      currency: [],
+      stock: [],
+      etf: [],
+      crypto: [],
+    };
 
-    // Create tickers for the API call
-    const tickerParams = targetCurrencies
-      .map((currency) => `tickers=${encodeURIComponent(`${currency}USD=X`)}`)
-      .join("&");
+    // Categorize assets
+    assetsWithBalances.forEach((asset) => {
+      const category = findAssetCategory(asset);
+      if (category && !assetsByCategory[category].includes(asset)) {
+        assetsByCategory[category].push(asset);
+      }
+    });
 
-    const response = await fetch(
-      `${API_BASE_URL}/prices/current?${tickerParams}&currency=${baseCurrency}`
-    );
+    const assetRates: AssetRates = { [baseCurrency]: 1 };
 
-    if (!response.ok) {
-      throw new Error(`Currency API error: ${response.status}`);
-    }
+    // Fetch rates for each category
+    for (const [category, assets] of Object.entries(assetsByCategory)) {
+      if (assets.length === 0) continue;
 
-    const data = await response.json();
+      const categoryAssets = assets.filter((asset) => asset !== baseCurrency);
+      if (categoryAssets.length === 0) continue;
 
-    // Convert the API response to our ExchangeRates format
-    const exchangeRates: ExchangeRates = { [baseCurrency]: 1 };
+      try {
+        const tickers = categoryAssets.map((asset) => {
+          switch (category) {
+            case "currency":
+              return `${asset}USD=X`;
+            case "stock":
+            case "etf":
+              return asset; // Stocks and ETFs use their ticker directly
+            case "crypto":
+              return `${asset}-USD`; // Crypto pairs
+            default:
+              return asset;
+          }
+        });
 
-    // The API returns a direct array of price data objects
-    if (Array.isArray(data)) {
-      data.forEach((priceData) => {
-        // Extract currency from ticker (e.g., "CHFUSD=X" -> "CHF")
-        const currency = priceData.ticker.replace("USD=X", "");
-        if (currency !== baseCurrency) {
-          // The price represents how much of the base currency you get for 1 unit of the source currency
-          // e.g., if baseCurrency is EUR and price is 1.0709, then 1 CHF = 1.0709 EUR
-          exchangeRates[currency] = priceData.price;
+        const tickerParams = tickers
+          .map((ticker) => `tickers=${encodeURIComponent(ticker)}`)
+          .join("&");
+
+        const response = await fetch(
+          `${API_BASE_URL}/prices/current?${tickerParams}&currency=${baseCurrency}`
+        );
+
+        if (!response.ok) {
+          console.warn(
+            `Failed to fetch rates for ${category}: ${response.status}`
+          );
+          continue;
         }
-      });
-    } else {
-      console.warn("Invalid API response format:", data);
-      throw new Error("Invalid API response format");
+
+        const data = await response.json();
+
+        if (Array.isArray(data)) {
+          data.forEach((priceData) => {
+            let asset = "";
+
+            // Extract asset from ticker based on category
+            switch (category) {
+              case "currency":
+                asset = priceData.ticker.replace("USD=X", "");
+                break;
+              case "stock":
+              case "etf":
+                asset = priceData.ticker;
+                break;
+              case "crypto":
+                asset = priceData.ticker.replace("-USD", "");
+                break;
+              default:
+                asset = priceData.ticker;
+            }
+
+            if (asset && asset !== baseCurrency) {
+              assetRates[asset] = priceData.price;
+            }
+          });
+        }
+      } catch (categoryError) {
+        console.warn(`Error fetching rates for ${category}:`, categoryError);
+        // Continue with other categories
+      }
     }
 
     // Cache the results
     ratesCache = {
-      data: exchangeRates,
+      data: assetRates,
       timestamp: now,
       baseCurrency,
+      requestedAssets: assetsWithBalances,
     };
-    return exchangeRates;
+
+    console.log("Asset rates:", assetRates);
+    return assetRates;
   } catch (error) {
-    console.error("Error fetching exchange rates:", error);
+    console.error("Error fetching asset rates:", error);
 
     // Return cached data if available, even if expired
     if (ratesCache.data && ratesCache.baseCurrency === baseCurrency) {
-      console.warn("Using expired exchange rates due to API error");
+      console.warn("Using expired asset rates due to API error");
       return ratesCache.data;
     }
 
-    // Fallback: return 1:1 rates if no cache available
-    console.warn("No exchange rates available, using 1:1 conversion");
-    return {
-      [baseCurrency]: 1,
-    };
+    // Fallback: return 1:1 rates for requested assets
+    console.warn("No asset rates available, using 1:1 conversion");
+    const fallbackRates: AssetRates = { [baseCurrency]: 1 };
+    assetsWithBalances.forEach((asset) => {
+      if (asset !== baseCurrency) {
+        fallbackRates[asset] = 1;
+      }
+    });
+    return fallbackRates;
   }
+}
+
+// Legacy function for backward compatibility - now uses the new system
+export async function getExchangeRates(
+  baseCurrency: string = "USD"
+): Promise<ExchangeRates> {
+  // Get all currency codes for backward compatibility
+  const currencies = getCurrencyCodes();
+  return getAssetRates(currencies, baseCurrency);
 }
 
 export function convertCurrency(
   amount: number,
-  fromCurrency: string,
-  toCurrency: string,
-  rates: ExchangeRates
+  fromAsset: string,
+  toAsset: string,
+  rates: AssetRates
 ): number {
-  if (fromCurrency === toCurrency) {
+  if (fromAsset === toAsset) {
     return amount;
   }
 
   // Find the base currency (the one with rate = 1)
   const baseCurrency =
-    Object.keys(rates).find((currency) => rates[currency] === 1) || "USD";
+    Object.keys(rates).find((asset) => rates[asset] === 1) || "USD";
 
-  // If converting from base currency to another currency
-  if (fromCurrency === baseCurrency && rates[toCurrency]) {
-    return amount * rates[toCurrency];
+  // If converting from base currency to another asset
+  if (fromAsset === baseCurrency && rates[toAsset]) {
+    return amount * rates[toAsset];
   }
 
-  // If converting from another currency to base currency
-  if (toCurrency === baseCurrency && rates[fromCurrency]) {
-    return amount * rates[fromCurrency];
+  // If converting from another asset to base currency
+  if (toAsset === baseCurrency && rates[fromAsset]) {
+    return amount * rates[fromAsset];
   }
 
-  // If converting between two non-base currencies
-  if (rates[fromCurrency] && rates[toCurrency]) {
-    // Convert from source currency to base currency, then to target currency
-    const amountInBase = amount * rates[fromCurrency];
-    return amountInBase / rates[toCurrency];
+  // If converting between two non-base assets
+  if (rates[fromAsset] && rates[toAsset]) {
+    // Convert from source asset to base currency, then to target asset
+    const amountInBase = amount * rates[fromAsset];
+    return amountInBase / rates[toAsset];
   }
 
   // Fallback: assume 1:1 conversion
-  console.warn(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
+  console.warn(`No exchange rate found for ${fromAsset} to ${toAsset}`);
   return amount;
 }
 
-// New function to get historical exchange rates
+// New function to get historical asset rates
+export async function getHistoricalAssetRates(
+  assetsWithBalances: string[],
+  baseCurrency: string = "USD",
+  period: string = "1d",
+  interval: string = "1h"
+): Promise<CurrencyPriceData[]> {
+  if (assetsWithBalances.length === 0) {
+    return [];
+  }
+
+  try {
+    // Group assets by category for different API endpoints
+    const assetsByCategory: Record<AssetCategory, string[]> = {
+      currency: [],
+      stock: [],
+      etf: [],
+      crypto: [],
+    };
+
+    // Categorize assets
+    assetsWithBalances.forEach((asset) => {
+      const category = findAssetCategory(asset);
+      if (category && !assetsByCategory[category].includes(asset)) {
+        assetsByCategory[category].push(asset);
+      }
+    });
+
+    const allHistoricalData: CurrencyPriceData[] = [];
+
+    // Fetch historical rates for each category
+    for (const [category, assets] of Object.entries(assetsByCategory)) {
+      if (assets.length === 0) continue;
+
+      const categoryAssets = assets.filter((asset) => asset !== baseCurrency);
+      if (categoryAssets.length === 0) continue;
+
+      try {
+        const tickers = categoryAssets.map((asset) => {
+          switch (category) {
+            case "currency":
+              return `${asset}USD=X`;
+            case "stock":
+            case "etf":
+              return asset; // Stocks and ETFs use their ticker directly
+            case "crypto":
+              return `${asset}-USD`; // Crypto pairs
+            default:
+              return asset;
+          }
+        });
+
+        const tickerParams = tickers
+          .map((ticker) => `tickers=${encodeURIComponent(ticker)}`)
+          .join("&");
+
+        const response = await fetch(
+          `${API_BASE_URL}/prices/historical?${tickerParams}&currency=${baseCurrency}&period=${period}&interval=${interval}`
+        );
+
+        if (!response.ok) {
+          console.warn(
+            `Failed to fetch historical rates for ${category}: ${response.status}`
+          );
+          continue;
+        }
+
+        const data = await response.json();
+
+        if (Array.isArray(data)) {
+          allHistoricalData.push(...data);
+        }
+      } catch (categoryError) {
+        console.warn(
+          `Error fetching historical rates for ${category}:`,
+          categoryError
+        );
+        // Continue with other categories
+      }
+    }
+
+    return allHistoricalData;
+  } catch (error) {
+    console.error("Error fetching historical asset rates:", error);
+    return [];
+  }
+}
+
+// Legacy function for backward compatibility
 export async function getHistoricalExchangeRates(
   baseCurrency: string = "USD",
   period: string = "1d",
   interval: string = "1h"
 ): Promise<CurrencyPriceData[]> {
-  try {
-    const currencies = [
-      "USD",
-      "EUR",
-      "GBP",
-      "JPY",
-      "CAD",
-      "AUD",
-      "CHF",
-      "CNY",
-      "SEK",
-      "NOK",
-      "DKK",
-      "PLN",
-      "CZK",
-      "HUF",
-      "RUB",
-      "BRL",
-      "INR",
-      "KRW",
-      "SGD",
-      "HKD",
-    ];
-    const targetCurrencies = currencies.filter((c) => c !== baseCurrency);
+  // Get all currency codes for backward compatibility
+  const currencies = getCurrencyCodes();
+  return getHistoricalAssetRates(currencies, baseCurrency, period, interval);
+}
 
-    // Create tickers for the API call
-    const tickerParams = targetCurrencies
-      .map((currency) => `tickers=${encodeURIComponent(`${currency}USD=X`)}`)
-      .join("&");
+export function formatCurrency(amount: number, asset: string): string {
+  const category = findAssetCategory(asset);
 
-    const response = await fetch(
-      `${API_BASE_URL}/prices/historical?${tickerParams}&currency=${baseCurrency}&period=${period}&interval=${interval}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Currency API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // The API returns a direct array of price data objects
-    if (Array.isArray(data)) {
-      return data;
-    } else {
-      console.warn("Invalid historical API response format:", data);
-      return [];
-    }
-  } catch (error) {
-    console.error("Error fetching historical exchange rates:", error);
-    return [];
+  // For currencies, use standard currency formatting
+  if (category === "currency") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: asset,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
   }
+
+  // For other assets, use custom formatting with symbol
+  const assetData = ASSETS[category]?.find((a) => a.ticker === asset);
+  const symbol = assetData?.symbol || asset;
+
+  return (
+    new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6, // More precision for stocks/crypto
+    }).format(amount) + ` ${symbol}`
+  );
 }
 
-export function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+export function getAssetSymbol(asset: string): string {
+  const category = findAssetCategory(asset);
+  const assetData = ASSETS[category]?.find((a) => a.ticker === asset);
+  return assetData?.symbol || asset;
 }
 
+// Legacy function for backward compatibility
 export function getCurrencySymbol(currency: string): string {
-  const symbols: { [key: string]: string } = {
-    USD: "$",
-    EUR: "€",
-    GBP: "£",
-    JPY: "¥",
-    CAD: "C$",
-    AUD: "A$",
-    CHF: "CHF",
-    CNY: "¥",
-    SEK: "kr",
-    NOK: "kr",
-    DKK: "kr",
-    PLN: "zł",
-    CZK: "Kč",
-    HUF: "Ft",
-    RUB: "₽",
-    BRL: "R$",
-    INR: "₹",
-    KRW: "₩",
-    SGD: "S$",
-    HKD: "HK$",
-  };
+  return getAssetSymbol(currency);
+}
 
-  return symbols[currency] || currency;
+// Helper function to extract unique assets from account balances
+export function extractAssetsFromBalances(
+  balances: Array<{ currency: string }>
+): string[] {
+  const uniqueAssets = new Set<string>();
+  balances.forEach((balance) => {
+    uniqueAssets.add(balance.currency);
+  });
+  return Array.from(uniqueAssets);
 }

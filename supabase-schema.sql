@@ -16,16 +16,17 @@ CREATE TABLE IF NOT EXISTS public.accounts (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create account_balances table to store multiple currencies per account
 CREATE TABLE IF NOT EXISTS public.account_balances (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE NOT NULL,
+  -- Category of the asset balance (currency, stock, etf, crypto)
+  category TEXT NOT NULL DEFAULT 'currency' CHECK (category IN ('currency', 'stock', 'etf', 'crypto')),
   currency TEXT NOT NULL,
-  initial_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
   current_balance DECIMAL(15,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(account_id, currency)
+  -- Ensure only one balance per asset category and symbol per account
+  UNIQUE(account_id, category, currency)
 );
 
 -- Create transactions table
