@@ -82,7 +82,7 @@ export interface Database {
           user_id: string;
           account_id: string;
           account_balance_id: string;
-          type: "income" | "expense" | "transfer";
+          type: "income" | "expense" | "transfer" | "taxation";
           amount: number;
           currency: string;
           description: string | null;
@@ -100,7 +100,7 @@ export interface Database {
           user_id: string;
           account_id: string;
           account_balance_id: string;
-          type: "income" | "expense" | "transfer";
+          type: "income" | "expense" | "transfer" | "taxation";
           amount: number;
           currency: string;
           description?: string | null;
@@ -118,7 +118,7 @@ export interface Database {
           user_id?: string;
           account_id?: string;
           account_balance_id?: string;
-          type?: "income" | "expense" | "transfer";
+          type?: "income" | "expense" | "transfer" | "taxation";
           amount?: number;
           currency?: string;
           description?: string | null;

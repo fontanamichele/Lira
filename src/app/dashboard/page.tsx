@@ -183,7 +183,11 @@ export default function DashboardPage() {
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
     return allTransactions
-      .filter((t) => t.type === "expense" && new Date(t.date) >= oneMonthAgo)
+      .filter(
+        (t) =>
+          (t.type === "expense" || t.type === "taxation") &&
+          new Date(t.date) >= oneMonthAgo
+      )
       .reduce((total, transaction) => {
         const convertedAmount = convertCurrency(
           transaction.amount,
@@ -436,6 +440,9 @@ export default function DashboardPage() {
                           transaction.type === "expense" &&
                           "Expense"}
                         {!transaction.description &&
+                          transaction.type === "taxation" &&
+                          "Taxation"}
+                        {!transaction.description &&
                           transaction.type === "transfer" &&
                           "Transfer"}
                       </p>
@@ -449,12 +456,15 @@ export default function DashboardPage() {
                           ? "text-green-500"
                           : transaction.type === "expense"
                           ? "text-red-500"
+                          : transaction.type === "taxation"
+                          ? "text-yellow-500"
                           : "text-blue-500"
                       }`}
                     >
                       {transaction.type === "income"
                         ? "+"
-                        : transaction.type === "expense"
+                        : transaction.type === "expense" ||
+                          transaction.type === "taxation"
                         ? "-"
                         : ""}
                       {formatCurrency(transaction.amount, transaction.currency)}

@@ -83,7 +83,7 @@ export default function CashflowPage() {
   const handleSubmit = async (formData: {
     account_id: string;
     account_balance_id: string;
-    type: "income" | "expense" | "transfer";
+    type: "income" | "expense" | "transfer" | "taxation";
     amount: number;
     currency: string;
     description?: string | null;
@@ -156,7 +156,7 @@ export default function CashflowPage() {
         const updateData: {
           account_id: string;
           account_balance_id: string;
-          type: "income" | "expense" | "transfer";
+          type: "income" | "expense" | "transfer" | "taxation";
           amount: number;
           currency: string;
           description?: string | null;
@@ -199,7 +199,7 @@ export default function CashflowPage() {
           user_id: string;
           account_id: string;
           account_balance_id: string;
-          type: "income" | "expense" | "transfer";
+          type: "income" | "expense" | "transfer" | "taxation";
           amount: number;
           currency: string;
           description?: string | null;
@@ -367,6 +367,8 @@ export default function CashflowPage() {
                           ? "bg-green-500/10"
                           : transaction.type === "expense"
                           ? "bg-red-500/10"
+                          : transaction.type === "taxation"
+                          ? "bg-yellow-500/10"
                           : "bg-blue-500/10"
                       }`}
                     >
@@ -374,6 +376,8 @@ export default function CashflowPage() {
                         <TrendingUp className="h-5 w-5 text-green-500" />
                       ) : transaction.type === "expense" ? (
                         <TrendingDown className="h-5 w-5 text-red-500" />
+                      ) : transaction.type === "taxation" ? (
+                        <TrendingDown className="h-5 w-5 text-yellow-500" />
                       ) : (
                         <ArrowRightLeft className="h-5 w-5 text-blue-500" />
                       )}
@@ -387,6 +391,9 @@ export default function CashflowPage() {
                         {!transaction.description &&
                           transaction.type === "expense" &&
                           "Expense"}
+                        {!transaction.description &&
+                          transaction.type === "taxation" &&
+                          "Taxation"}
                         {!transaction.description &&
                           transaction.type === "transfer" &&
                           "Transfer"}
@@ -441,6 +448,8 @@ export default function CashflowPage() {
                           ? "text-green-500"
                           : transaction.type === "expense"
                           ? "text-red-500"
+                          : transaction.type === "taxation"
+                          ? "text-yellow-500"
                           : "text-blue-500"
                       }`}
                     >

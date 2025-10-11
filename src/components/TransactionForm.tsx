@@ -20,7 +20,7 @@ interface TransactionFormProps {
   onSubmit: (formData: {
     account_id: string;
     account_balance_id: string;
-    type: "income" | "expense" | "transfer";
+    type: "income" | "expense" | "transfer" | "taxation";
     amount: number;
     currency: string;
     description?: string | null;
@@ -51,6 +51,22 @@ const EXPENSE_CATEGORIES = [
   "Other",
 ];
 
+const TAXATION_CATEGORIES = [
+  "Income Tax",
+  "Property Tax",
+  "Sales Tax",
+  "Capital Gains Tax",
+  "Corporate Tax",
+  "VAT",
+  "Social Security",
+  "Medicare",
+  "State Tax",
+  "Local Tax",
+  "Estate Tax",
+  "Gift Tax",
+  "Other Tax",
+];
+
 const INCOME_SOURCES = [
   "Salary",
   "Freelance",
@@ -75,7 +91,7 @@ export default function TransactionForm({
   const [formData, setFormData] = useState({
     account_id: "",
     account_balance_id: "",
-    type: "expense" as "income" | "expense" | "transfer",
+    type: "expense" as "income" | "expense" | "transfer" | "taxation",
     amount: 0,
     currency: "USD",
     description: "",
@@ -158,7 +174,7 @@ export default function TransactionForm({
     }
 
     // Currency/asset validation
-    if (formData.type === "expense") {
+    if (formData.type === "expense" || formData.type === "taxation") {
       if (!formData.account_balance_id)
         newErrors.currency = "Please select a currency";
     } else if (formData.type === "income") {
@@ -436,7 +452,7 @@ export default function TransactionForm({
   const isAccountSelected = !!formData.account_id;
   const isFormValid =
     isAccountSelected &&
-    (formData.type === "expense"
+    (formData.type === "expense" || formData.type === "taxation"
       ? !!formData.account_balance_id
       : formData.type === "income"
       ? !!formData.asset_ticker
@@ -476,7 +492,8 @@ export default function TransactionForm({
                 const newType = e.target.value as
                   | "income"
                   | "expense"
-                  | "transfer";
+                  | "transfer"
+                  | "taxation";
                 setFormData({
                   ...formData,
                   type: newType,
@@ -504,6 +521,7 @@ export default function TransactionForm({
               <option value="expense">Expense</option>
               <option value="income">Income</option>
               <option value="transfer">Transfer</option>
+              <option value="taxation">Taxation</option>
             </select>
           </div>
 
@@ -566,7 +584,9 @@ export default function TransactionForm({
                 )}
               </div>
 
-              {formData.type === "expense" || formData.type === "transfer" ? (
+              {formData.type === "expense" ||
+              formData.type === "taxation" ||
+              formData.type === "transfer" ? (
                 <div>
                   <label
                     htmlFor="currency"
@@ -729,7 +749,11 @@ export default function TransactionForm({
                   htmlFor="category"
                   className="block text-sm font-medium text-foreground mb-2"
                 >
-                  {formData.type === "income" ? "Source" : "Category"}
+                  {formData.type === "income"
+                    ? "Source"
+                    : formData.type === "taxation"
+                    ? "Tax Type"
+                    : "Category"}
                 </label>
                 <select
                   id="category"
@@ -742,10 +766,14 @@ export default function TransactionForm({
                   <option value="">
                     {formData.type === "income"
                       ? "Select a source"
+                      : formData.type === "taxation"
+                      ? "Select a tax type"
                       : "Select a category"}
                   </option>
                   {(formData.type === "income"
                     ? INCOME_SOURCES
+                    : formData.type === "taxation"
+                    ? TAXATION_CATEGORIES
                     : EXPENSE_CATEGORIES
                   ).map((item) => (
                     <option key={item} value={item}>

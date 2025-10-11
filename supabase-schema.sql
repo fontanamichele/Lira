@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE NOT NULL,
   account_balance_id UUID REFERENCES public.account_balances(id) ON DELETE CASCADE NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'transfer')),
+  type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'transfer', 'taxation')),
   amount DECIMAL(15,2) NOT NULL,
   currency TEXT NOT NULL,
   description TEXT,
@@ -180,7 +180,7 @@ BEGIN
       UPDATE public.account_balances 
       SET current_balance = current_balance + NEW.amount
       WHERE id = NEW.account_balance_id;
-    ELSIF NEW.type = 'expense' THEN
+    ELSIF NEW.type = 'expense' OR NEW.type = 'taxation' THEN
       UPDATE public.account_balances 
       SET current_balance = current_balance - NEW.amount
       WHERE id = NEW.account_balance_id;
@@ -201,7 +201,7 @@ BEGIN
       UPDATE public.account_balances 
       SET current_balance = current_balance - OLD.amount
       WHERE id = OLD.account_balance_id;
-    ELSIF OLD.type = 'expense' THEN
+    ELSIF OLD.type = 'expense' OR OLD.type = 'taxation' THEN
       UPDATE public.account_balances 
       SET current_balance = current_balance + OLD.amount
       WHERE id = OLD.account_balance_id;
@@ -221,7 +221,7 @@ BEGIN
       UPDATE public.account_balances 
       SET current_balance = current_balance + NEW.amount
       WHERE id = NEW.account_balance_id;
-    ELSIF NEW.type = 'expense' THEN
+    ELSIF NEW.type = 'expense' OR NEW.type = 'taxation' THEN
       UPDATE public.account_balances 
       SET current_balance = current_balance - NEW.amount
       WHERE id = NEW.account_balance_id;
@@ -242,7 +242,7 @@ BEGIN
       UPDATE public.account_balances 
       SET current_balance = current_balance - OLD.amount
       WHERE id = OLD.account_balance_id;
-    ELSIF OLD.type = 'expense' THEN
+    ELSIF OLD.type = 'expense' OR OLD.type = 'taxation' THEN
       UPDATE public.account_balances 
       SET current_balance = current_balance + OLD.amount
       WHERE id = OLD.account_balance_id;

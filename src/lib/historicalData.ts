@@ -260,7 +260,10 @@ function calculateAssetValueAtDate(
   relevantTransactions.forEach((transaction) => {
     if (transaction.type === "income") {
       balanceAtDate += transaction.amount;
-    } else if (transaction.type === "expense") {
+    } else if (
+      transaction.type === "expense" ||
+      transaction.type === "taxation"
+    ) {
       balanceAtDate -= transaction.amount;
     } else if (transaction.type === "transfer") {
       // For transfers, we need to check if it's incoming or outgoing
@@ -409,7 +412,10 @@ function calculateBalanceAtDate(
   relevantTransactions.forEach((transaction) => {
     if (transaction.type === "income") {
       balanceAtDate += transaction.amount;
-    } else if (transaction.type === "expense") {
+    } else if (
+      transaction.type === "expense" ||
+      transaction.type === "taxation"
+    ) {
       balanceAtDate -= transaction.amount;
     } else if (transaction.type === "transfer") {
       // For transfers, we need to check if it's incoming or outgoing
