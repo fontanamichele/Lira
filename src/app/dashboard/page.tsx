@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Database } from "@/types/database";
 import MainLayout from "@/components/layout/MainLayout";
 import HistoricalChart from "@/components/HistoricalChart";
+import PieChart from "@/components/PieChart";
 import { TrendingUp, TrendingDown, CreditCard, DollarSign } from "lucide-react";
 import {
   getAssetRates,
@@ -183,11 +184,7 @@ export default function DashboardPage() {
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
     return allTransactions
-      .filter(
-        (t) =>
-          (t.type === "expense" || t.type === "taxation") &&
-          new Date(t.date) >= oneMonthAgo
-      )
+      .filter((t) => t.type === "expense" && new Date(t.date) >= oneMonthAgo)
       .reduce((total, transaction) => {
         const convertedAmount = convertCurrency(
           transaction.amount,
@@ -217,7 +214,7 @@ export default function DashboardPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-8">
+      <div className="space-y-3">
         {/* Header */}
         <div
           className={`text-center lg:text-left transition-opacity duration-500 ${
@@ -239,7 +236,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <div
             className={`card-elevated p-6 hover:scale-105 transition-all duration-300 ${
               animationsReady ? "animate-bounce-in" : "opacity-0"
@@ -336,27 +333,44 @@ export default function DashboardPage() {
            */}
         </div>
 
-        {/* Historical Chart */}
-        <div
-          className={`transition-all duration-300 ${
-            animationsReady ? "animate-slide-in-up" : "opacity-0"
-          }`}
-          style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
-        >
-          <HistoricalChart
-            accounts={accounts}
-            transactions={allTransactions}
-            mainCurrency={mainCurrency}
-          />
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {/* Historical Chart */}
+          <div
+            className={`lg:col-span-2 transition-all duration-300 ${
+              animationsReady ? "animate-slide-in-up" : "opacity-0"
+            }`}
+            style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
+          >
+            <HistoricalChart
+              accounts={accounts}
+              transactions={allTransactions}
+              mainCurrency={mainCurrency}
+            />
+          </div>
+
+          {/* Asset Distribution Pie Chart */}
+          <div
+            className={`transition-all duration-300 ${
+              animationsReady ? "animate-slide-in-up" : "opacity-0"
+            }`}
+            style={{ animationDelay: animationsReady ? "0.5s" : "0s" }}
+          >
+            <PieChart
+              accounts={accounts}
+              exchangeRates={exchangeRates}
+              mainCurrency={mainCurrency}
+            />
+          </div>
         </div>
 
         {/* Accounts Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div
             className={`card-elevated p-6 transition-all duration-300 ${
               animationsReady ? "animate-slide-in-right" : "opacity-0"
             }`}
-            style={{ animationDelay: animationsReady ? "0.6s" : "0s" }}
+            style={{ animationDelay: animationsReady ? "0.7s" : "0s" }}
           >
             <h2 className="text-xl font-semibold text-foreground mb-6 flex items-center">
               <CreditCard className="h-5 w-5 mr-2 text-primary" />
@@ -408,7 +422,7 @@ export default function DashboardPage() {
             className={`card-elevated p-6 transition-all duration-300 ${
               animationsReady ? "animate-slide-in-right" : "opacity-0"
             }`}
-            style={{ animationDelay: animationsReady ? "0.7s" : "0s" }}
+            style={{ animationDelay: animationsReady ? "0.8s" : "0s" }}
           >
             <h2 className="text-xl font-semibold text-foreground mb-6 flex items-center">
               <TrendingUp className="h-5 w-5 mr-2 text-primary" />
