@@ -367,15 +367,13 @@ export default function DashboardPage() {
             }`}
             style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
           >
-            {animationsReady &&
-              accounts.length > 0 &&
-              allTransactions.length > 0 && (
-                <HistoricalChart
-                  accounts={accounts}
-                  transactions={allTransactions}
-                  mainCurrency={mainCurrency}
-                />
-              )}
+            {animationsReady && (
+              <HistoricalChart
+                accounts={accounts}
+                transactions={allTransactions}
+                mainCurrency={mainCurrency}
+              />
+            )}
           </div>
 
           {/* Asset Distribution Pie Chart */}

@@ -218,12 +218,14 @@ export default function HistoricalChart({
             Portfolio History
           </h2>
         </div>
-        <div className="text-center py-8">
-          <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            No historical data available. Add some transactions to see your
-            portfolio history.
-          </p>
+        <div className="h-80 flex items-center justify-center">
+          <div className="text-center">
+            <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              No historical data available. Add some transactions to see your
+              portfolio history.
+            </p>
+          </div>
         </div>
       </div>
     );
