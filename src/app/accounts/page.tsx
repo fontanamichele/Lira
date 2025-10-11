@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Database } from "@/types/database";
 import MainLayout from "@/components/layout/MainLayout";
 import { Plus, Edit, Trash2, CreditCard, Wallet } from "lucide-react";
+import Modal from "@/components/ui/Modal";
 import {
   getAssetRates,
   convertCurrency,
@@ -13,12 +14,22 @@ import {
   AssetRates,
   extractAssetsFromBalances,
 } from "@/lib/currency";
+import { ASSETS, findAssetCategory } from "@/lib/assets";
 
 type Account = Database["public"]["Tables"]["accounts"]["Row"];
 type AccountBalance = Database["public"]["Tables"]["account_balances"]["Row"];
 
 interface AccountWithBalances extends Account {
   balances: AccountBalance[];
+}
+
+// Helper function to get asset name from ticker
+function getAssetName(ticker: string): string {
+  const category = findAssetCategory(ticker);
+  const asset = ASSETS[category].find(
+    (a) => a.ticker.toUpperCase() === ticker.toUpperCase()
+  );
+  return asset ? asset.name : ticker;
 }
 
 export default function AccountsPage() {
@@ -144,7 +155,6 @@ export default function AccountsPage() {
 
       if (editingAccount) {
         // Update existing account
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from("accounts")
           .update({ name: formData.name })
@@ -153,7 +163,6 @@ export default function AccountsPage() {
         if (error) throw error;
       } else {
         // Create new account
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: accountError } = await (supabase as any)
           .from("accounts")
           .insert({
@@ -290,53 +299,51 @@ export default function AccountsPage() {
           </div>
         )}
 
-        {/* Add/Edit Form */}
-        {showAddForm && (
-          <div className="bg-card border border-border rounded-lg p-6 animate-scale-in">
-            <h2 className="text-lg font-semibold text-foreground mb-4">
-              {editingAccount ? "Edit Account" : "Add New Account"}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Account Name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-input rounded-md shadow-sm placeholder-muted-foreground  bg-background text-foreground"
-                  placeholder="e.g., Checking Account, Savings"
-                  required
-                />
-              </div>
+        {/* Add/Edit Modal */}
+        <Modal
+          isOpen={showAddForm}
+          onClose={resetForm}
+          title={editingAccount ? "Edit Account" : "Add New Account"}
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label
+                htmlFor="name"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Account Name
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-input rounded-md shadow-sm placeholder-muted-foreground bg-background text-foreground"
+                placeholder="e.g., Checking Account, Savings"
+                required
+                autoFocus
+              />
+            </div>
 
-              {/* Removed balances UI from Accounts page */}
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                >
-                  {editingAccount ? "Update Account" : "Add Account"}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
+              >
+                {editingAccount ? "Update Account" : "Add Account"}
+              </button>
+            </div>
+          </form>
+        </Modal>
 
         {/* Accounts List */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -379,23 +386,53 @@ export default function AccountsPage() {
 
               <div className="space-y-2">
                 <div>
-                  <span className="text-sm text-muted-foreground">
-                    Current Balances
-                  </span>
-                  <div className="mt-1 space-y-1">
-                    {account.balances.map((balance, index) => (
-                      <div key={index} className="flex justify-between">
-                        <span className="text-sm text-foreground">
-                          {balance.category}: {balance.currency}
-                        </span>
-                        <span className="font-semibold text-foreground">
-                          {formatCurrency(
-                            balance.current_balance,
-                            balance.currency
-                          )}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="mt-1 space-y-2">
+                    {account.balances
+                      .filter((balance) => balance.current_balance > 0)
+                      .map((balance, index) => {
+                        const assetName = getAssetName(balance.currency);
+                        const convertedValue =
+                          exchangeRates && userProfile?.main_currency
+                            ? convertCurrency(
+                                balance.current_balance,
+                                balance.currency,
+                                userProfile.main_currency,
+                                exchangeRates
+                              )
+                            : 0;
+
+                        return (
+                          <div
+                            key={index}
+                            className="flex justify-between items-start"
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-foreground">
+                                {assetName}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {balance.currency}
+                              </span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span className="font-semibold text-foreground">
+                                {formatCurrency(
+                                  balance.current_balance,
+                                  balance.currency
+                                )}
+                              </span>
+                              {exchangeRates && userProfile?.main_currency && (
+                                <span className="text-xs text-muted-foreground">
+                                  {formatCurrency(
+                                    convertedValue,
+                                    userProfile.main_currency
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
 
