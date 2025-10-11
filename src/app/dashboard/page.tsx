@@ -12,6 +12,7 @@ import {
   CreditCard,
   DollarSign,
   ArrowRight,
+  History,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -465,7 +466,7 @@ export default function DashboardPage() {
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-foreground flex items-center">
-                <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+                <History className="h-5 w-5 mr-2 text-primary" />
                 Recent Transactions
               </h2>
               <Link
@@ -478,7 +479,7 @@ export default function DashboardPage() {
             </div>
             {recentTransactions.length === 0 ? (
               <div className="text-center py-8">
-                <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <History className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">
                   No recent transactions. Start tracking your expenses and
                   income.

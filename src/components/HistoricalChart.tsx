@@ -12,7 +12,7 @@ import {
   Area,
   ComposedChart,
 } from "recharts";
-import { TrendingUp, Calendar, BarChart3 } from "lucide-react";
+import { LineChart, Calendar, BarChart3 } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import {
   calculateHistoricalHoldings,
@@ -191,7 +191,7 @@ export default function HistoricalChart({
       <div className={`card-elevated p-6 ${className}`}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-foreground flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+            <LineChart className="h-5 w-5 mr-2 text-primary" />
             Portfolio History
           </h2>
         </div>
@@ -214,7 +214,7 @@ export default function HistoricalChart({
       <div className={`card-elevated p-6 ${className}`}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-foreground flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+            <LineChart className="h-5 w-5 mr-2 text-primary" />
             Portfolio History
           </h2>
         </div>
@@ -233,7 +233,7 @@ export default function HistoricalChart({
     <div className={`card-elevated p-6 ${className}`}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-foreground flex items-center">
-          <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+          <LineChart className="h-5 w-5 mr-2 text-primary" />
           Portfolio History
         </h2>
 
