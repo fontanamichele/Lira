@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { getCurrencies } from "@/lib/assets";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -141,9 +142,15 @@ export default function OnboardingPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="text-center mb-8 animate-fade-in">
           <div className="mb-6">
-            <h1 className="text-5xl font-bold gradient-primary bg-clip-text text-transparent mb-2">
-              Lira
-            </h1>
+            <div className="flex justify-center mb-4">
+              <Image
+                src="/assets/logo_round.png"
+                alt="Lira"
+                width={200}
+                height={80}
+                className="h-20 w-auto"
+              />
+            </div>
             <div className="w-20 h-1 bg-primary mx-auto rounded-full"></div>
           </div>
           <h2 className="text-3xl font-semibold text-foreground mb-2">
@@ -228,6 +235,13 @@ export default function OnboardingPage() {
                 Add your bank accounts to start tracking your cashflow
               </p>
 
+              <div className="bg-muted/50 rounded-lg p-4">
+                <p className="text-sm text-muted-foreground">
+                  Account balances will be created automatically when you add
+                  income or transfer transactions in the cashflow section.
+                </p>
+              </div>
+
               {bankAccounts.map((account, index) => (
                 <div
                   key={account.id}
@@ -261,14 +275,6 @@ export default function OnboardingPage() {
                       className="w-full px-3 py-2 border border-input rounded-md shadow-sm placeholder-muted-foreground  bg-background text-foreground"
                       placeholder="e.g., Checking Account, Savings"
                     />
-                  </div>
-
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground">
-                      Account balances will be created automatically when you
-                      add income or transfer transactions in the cashflow
-                      section.
-                    </p>
                   </div>
                 </div>
               ))}
