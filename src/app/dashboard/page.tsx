@@ -6,7 +6,14 @@ import { Database } from "@/types/database";
 import MainLayout from "@/components/layout/MainLayout";
 import HistoricalChart from "@/components/HistoricalChart";
 import PieChart from "@/components/PieChart";
-import { TrendingUp, TrendingDown, CreditCard, DollarSign } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  CreditCard,
+  DollarSign,
+  ArrowRight,
+} from "lucide-react";
+import Link from "next/link";
 import {
   getAssetRates,
   convertCurrency,
@@ -55,6 +62,9 @@ export default function DashboardPage() {
       setRatesLoading(false);
     }
   }, [profile?.main_currency, accounts]);
+
+  // Track parameters to prevent unnecessary refetches
+  const [lastRatesParams, setLastRatesParams] = useState<string>("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -118,10 +128,24 @@ export default function DashboardPage() {
   }, [fetchData]);
 
   useEffect(() => {
-    if (profile?.main_currency) {
+    if (!profile?.main_currency || accounts.length === 0) return;
+
+    // Create a unique key for the current parameters
+    const ratesParamsKey = JSON.stringify({
+      mainCurrency: profile.main_currency,
+      accountsLength: accounts.length,
+      assets: accounts
+        .flatMap((account) => account.balances)
+        .map((b) => b.currency)
+        .sort(),
+    });
+
+    // Only fetch if parameters have changed
+    if (ratesParamsKey !== lastRatesParams) {
+      setLastRatesParams(ratesParamsKey);
       fetchExchangeRates();
     }
-  }, [profile, fetchExchangeRates]);
+  }, [profile?.main_currency, accounts, fetchExchangeRates, lastRatesParams]);
 
   // Calculate total balance converted to main currency
   const calculateTotalBalance = (): number => {
@@ -251,11 +275,11 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-muted-foreground">
                   Total Balance
                 </p>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 h-8">
                   {ratesLoading ? (
-                    <div className="h-6 w-6 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+                    <div className="h-5 w-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-2xl font-bold text-foreground leading-8">
                       {formatCurrency(totalBalance, mainCurrency)}
                     </p>
                   )}
@@ -278,11 +302,11 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-muted-foreground">
                   Income (Last Month)
                 </p>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 h-8">
                   {ratesLoading ? (
-                    <div className="h-6 w-6 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+                    <div className="h-5 w-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-2xl font-bold text-foreground leading-8">
                       {formatCurrency(totalIncome, mainCurrency)}
                     </p>
                   )}
@@ -305,11 +329,11 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-muted-foreground">
                   Expenses (Last Month)
                 </p>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 h-8">
                   {ratesLoading ? (
-                    <div className="h-6 w-6 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+                    <div className="h-5 w-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-2xl font-bold text-foreground leading-8">
                       {formatCurrency(totalExpenses, mainCurrency)}
                     </p>
                   )}
@@ -342,11 +366,15 @@ export default function DashboardPage() {
             }`}
             style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
           >
-            <HistoricalChart
-              accounts={accounts}
-              transactions={allTransactions}
-              mainCurrency={mainCurrency}
-            />
+            {animationsReady &&
+              accounts.length > 0 &&
+              allTransactions.length > 0 && (
+                <HistoricalChart
+                  accounts={accounts}
+                  transactions={allTransactions}
+                  mainCurrency={mainCurrency}
+                />
+              )}
           </div>
 
           {/* Asset Distribution Pie Chart */}
@@ -356,11 +384,13 @@ export default function DashboardPage() {
             }`}
             style={{ animationDelay: animationsReady ? "0.5s" : "0s" }}
           >
-            <PieChart
-              accounts={accounts}
-              exchangeRates={exchangeRates}
-              mainCurrency={mainCurrency}
-            />
+            {animationsReady && accounts.length > 0 && (
+              <PieChart
+                accounts={accounts}
+                exchangeRates={exchangeRates}
+                mainCurrency={mainCurrency}
+              />
+            )}
           </div>
         </div>
 
@@ -372,10 +402,19 @@ export default function DashboardPage() {
             }`}
             style={{ animationDelay: animationsReady ? "0.7s" : "0s" }}
           >
-            <h2 className="text-xl font-semibold text-foreground mb-6 flex items-center">
-              <CreditCard className="h-5 w-5 mr-2 text-primary" />
-              Your Accounts
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-foreground flex items-center">
+                <CreditCard className="h-5 w-5 mr-2 text-primary" />
+                Your Accounts
+              </h2>
+              <Link
+                href="/accounts"
+                className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View All
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </div>
             {accounts.length === 0 ? (
               <div className="text-center py-8">
                 <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -424,10 +463,19 @@ export default function DashboardPage() {
             }`}
             style={{ animationDelay: animationsReady ? "0.8s" : "0s" }}
           >
-            <h2 className="text-xl font-semibold text-foreground mb-6 flex items-center">
-              <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-              Recent Transactions
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-foreground flex items-center">
+                <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+                Recent Transactions
+              </h2>
+              <Link
+                href="/cashflow"
+                className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View All
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </div>
             {recentTransactions.length === 0 ? (
               <div className="text-center py-8">
                 <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

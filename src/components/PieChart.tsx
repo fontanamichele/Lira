@@ -38,6 +38,8 @@ interface PieChartData {
   [key: string]: any;
 }
 
+type ViewMode = "assets" | "categories";
+
 // Color palette using theme chart colors
 const ASSET_COLORS = [
   "hsl(var(--chart-1))", // Primary orange
@@ -60,9 +62,16 @@ export default function PieChart({
 }: PieChartProps) {
   const [chartData, setChartData] = useState<PieChartData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("assets");
 
   const processData = useCallback(async () => {
-    if (!exchangeRates || accounts.length === 0) {
+    // If we don't have exchange rates yet, keep loading state
+    if (!exchangeRates) {
+      return;
+    }
+
+    // If we have exchange rates but no accounts, that's a real "no data" state
+    if (accounts.length === 0) {
       setLoading(false);
       setChartData([]);
       return;
@@ -71,7 +80,7 @@ export default function PieChart({
     setLoading(true);
 
     try {
-      // Aggregate all balances by currency only
+      // Aggregate all balances by currency or category based on view mode
       const balanceMap = new Map<
         string,
         {
@@ -85,7 +94,9 @@ export default function PieChart({
       accounts.forEach((account) => {
         account.balances.forEach((balance) => {
           if (balance.current_balance > 0) {
-            const key = balance.currency;
+            // Use currency for assets view, category for categories view
+            const key =
+              viewMode === "assets" ? balance.currency : balance.category;
             const convertedValue = convertCurrency(
               balance.current_balance,
               balance.currency,
@@ -113,7 +124,10 @@ export default function PieChart({
       // Convert to array and sort by value
       let data: PieChartData[] = Array.from(balanceMap.entries())
         .map(([key, data]) => ({
-          name: data.originalCurrency.toUpperCase(),
+          name:
+            viewMode === "assets"
+              ? data.originalCurrency.toUpperCase()
+              : key.charAt(0).toUpperCase() + key.slice(1), // Capitalize category name
           value: data.value,
           originalValue: data.originalValue,
           originalCurrency: data.originalCurrency,
@@ -165,7 +179,7 @@ export default function PieChart({
     } finally {
       setLoading(false);
     }
-  }, [accounts, exchangeRates, mainCurrency]);
+  }, [accounts, exchangeRates, mainCurrency, viewMode]);
 
   useEffect(() => {
     processData();
@@ -184,10 +198,15 @@ export default function PieChart({
             {formatCurrency(data.value, mainCurrency)} (
             {data.percentage.toFixed(1)}%)
           </p>
-          {data.originalCurrency !== "MIXED" && (
+          {viewMode === "assets" && data.originalCurrency !== "MIXED" && (
             <p className="text-xs text-muted-foreground">
               Original:{" "}
               {formatCurrency(data.originalValue, data.originalCurrency)}
+            </p>
+          )}
+          {viewMode === "categories" && (
+            <p className="text-xs text-muted-foreground">
+              Category: {data.name}
             </p>
           )}
         </div>
@@ -236,15 +255,7 @@ export default function PieChart({
     );
   };
 
-  if (loading) {
-    return (
-      <div className={`card-elevated p-6 ${className}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    );
-  }
+  // Don't return early for loading - we'll handle it in the render
 
   if (chartData.length === 0 && !loading) {
     return (
@@ -255,12 +266,14 @@ export default function PieChart({
             Asset Distribution
           </h2>
         </div>
-        <div className="text-center py-8">
-          <PieChartIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            No asset balances found. Add some transactions to see your asset
-            distribution.
-          </p>
+        <div className="h-80 flex items-center justify-center">
+          <div className="text-center">
+            <PieChartIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              No asset balances found. Add some transactions to see your asset
+              distribution.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -273,32 +286,63 @@ export default function PieChart({
           <PieChartIcon className="h-5 w-5 mr-2 text-primary" />
           Asset Distribution
         </h2>
+
+        <div className="flex items-center">
+          <div className="flex bg-muted rounded-md p-0.5">
+            <button
+              onClick={() => setViewMode("assets")}
+              className={`px-2 py-1 text-xs rounded-sm transition-colors ${
+                viewMode === "assets"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Assets
+            </button>
+            <button
+              onClick={() => setViewMode("categories")}
+              className={`px-2 py-1 text-xs rounded-sm transition-colors ${
+                viewMode === "categories"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Categories
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <RechartsPieChart>
-            <Pie
-              data={chartData}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={false}
-              outerRadius={80}
-              stroke="none"
-              dataKey="value"
-              animationBegin={0}
-              animationDuration={1000}
-              animationEasing="ease-out"
-            >
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend content={<CustomLegend />} />
-          </RechartsPieChart>
-        </ResponsiveContainer>
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <RechartsPieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={false}
+                outerRadius={80}
+                stroke="none"
+                dataKey="value"
+                animationBegin={0}
+                animationDuration={1000}
+                animationEasing="ease-out"
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip content={<CustomTooltip />} />
+              <Legend content={<CustomLegend />} />
+            </RechartsPieChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
