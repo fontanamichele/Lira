@@ -76,6 +76,32 @@ export interface Database {
           updated_at?: string;
         };
       };
+      user_categories: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: "income" | "expense" | "taxation";
+          name: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: "income" | "expense" | "taxation";
+          name: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: "income" | "expense" | "taxation";
+          name?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       transactions: {
         Row: {
           id: string;
@@ -86,7 +112,7 @@ export interface Database {
           amount: number;
           currency: string;
           description: string | null;
-          category: string | null;
+          category_id: string | null;
           date: string;
           to_account_id: string | null;
           to_account_balance_id: string | null;
@@ -104,7 +130,7 @@ export interface Database {
           amount: number;
           currency: string;
           description?: string | null;
-          category?: string | null;
+          category_id?: string | null;
           date: string;
           to_account_id?: string | null;
           to_account_balance_id?: string | null;
@@ -122,7 +148,7 @@ export interface Database {
           amount?: number;
           currency?: string;
           description?: string | null;
-          category?: string | null;
+          category_id?: string | null;
           date?: string;
           to_account_id?: string | null;
           to_account_balance_id?: string | null;

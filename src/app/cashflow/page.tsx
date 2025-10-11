@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Database } from "@/types/database";
 import MainLayout from "@/components/layout/MainLayout";
 import TransactionForm from "@/components/TransactionForm";
+import CategoryManager from "@/components/CategoryManager";
 import Modal from "@/components/ui/Modal";
 import {
   Plus,
@@ -20,6 +21,7 @@ import {
   Filter,
   X,
   FileText,
+  Settings,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -28,6 +30,7 @@ import {
   AssetRates,
 } from "@/lib/currency";
 import { findAssetCategory } from "@/lib/assets";
+import { getAllUserCategories } from "@/lib/categories";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type Account = Database["public"]["Tables"]["accounts"]["Row"];
@@ -64,6 +67,13 @@ export default function CashflowPage() {
     main_currency: string;
   } | null>(null);
   const [exchangeRates, setExchangeRates] = useState<AssetRates | null>(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [categoriesRefreshed, setCategoriesRefreshed] = useState(false);
+  const [categories, setCategories] = useState<{
+    income: any[];
+    expense: any[];
+    taxation: any[];
+  }>({ income: [], expense: [], taxation: [] });
   const supabase = createClient();
 
   const fetchData = useCallback(async () => {
@@ -143,11 +153,50 @@ export default function CashflowPage() {
     }
   }, [userProfile?.main_currency, transactions]);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      const allCategories = await getAllUserCategories();
+      setCategories(allCategories);
+    } catch (error) {
+      console.error("Error loading categories:", error);
+    }
+  }, []);
+
+  const getCategoryName = useCallback(
+    (categoryId: string | null, transactionType: string) => {
+      if (!categoryId) return null;
+      const categoryList =
+        categories[transactionType as keyof typeof categories] || [];
+      const category = categoryList.find((c) => c.id === categoryId);
+      return category?.name || null;
+    },
+    [categories]
+  );
+
+  const handleCategoriesChange = useCallback(() => {
+    setCategoriesRefreshed((prev) => !prev);
+    loadCategories(); // Reload categories when they change
+  }, [loadCategories]);
+
+  // Reset the refresh flag after a short delay
+  useEffect(() => {
+    if (categoriesRefreshed) {
+      const timer = setTimeout(() => {
+        setCategoriesRefreshed(false);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [categoriesRefreshed]);
+
   useEffect(() => {
     if (userProfile?.main_currency) {
       fetchExchangeRates();
     }
   }, [userProfile, fetchExchangeRates]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   const handleSubmit = async (formData: {
     account_id: string;
@@ -156,7 +205,7 @@ export default function CashflowPage() {
     amount: number;
     currency: string;
     description?: string | null;
-    category?: string | null;
+    category_id?: string | null;
     date: string;
     to_account_id?: string | null;
     to_account_balance_id?: string | null;
@@ -228,7 +277,7 @@ export default function CashflowPage() {
           amount: number;
           currency: string;
           description?: string | null;
-          category?: string | null;
+          category_id?: string | null;
           date: string;
           to_account_id?: string | null;
           to_account_balance_id?: string | null;
@@ -241,7 +290,7 @@ export default function CashflowPage() {
           amount: formData.amount,
           currency: formData.currency,
           description: formData.description || null,
-          category: formData.category || null,
+          category_id: formData.category_id || null,
           date: formData.date,
         };
 
@@ -270,7 +319,7 @@ export default function CashflowPage() {
           amount: number;
           currency: string;
           description?: string | null;
-          category?: string | null;
+          category_id?: string | null;
           date: string;
           to_account_id?: string | null;
           to_account_balance_id?: string | null;
@@ -284,7 +333,7 @@ export default function CashflowPage() {
           amount: formData.amount,
           currency: formData.currency,
           description: formData.description || null,
-          category: formData.category || null,
+          category_id: formData.category_id || null,
           date: formData.date,
         };
 
@@ -498,7 +547,7 @@ export default function CashflowPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-3">
         {/* Header */}
         <div
           className={`flex justify-between items-center transition-opacity duration-500 ${
@@ -538,6 +587,7 @@ export default function CashflowPage() {
             editingTransaction={editingTransaction}
             onSubmit={handleSubmit}
             onCancel={resetForm}
+            refreshCategories={categoriesRefreshed}
           />
         </Modal>
 
@@ -655,12 +705,40 @@ export default function CashflowPage() {
           </div>
         </Modal>
 
+        {/* Category Management Section */}
+        <div
+          className={`card-elevated transition-all duration-300 ${
+            showCategoryManager ? "p-6" : "p-4"
+          } ${animationsReady ? "animate-bounce-in" : "opacity-0"}`}
+          style={{ animationDelay: animationsReady ? "0.2s" : "0s" }}
+        >
+          <div
+            className={`flex items-center justify-between ${
+              showCategoryManager ? "mb-6" : "mb-0"
+            }`}
+          >
+            <h2 className="text-xl font-semibold text-foreground flex items-center">
+              <Settings className="h-5 w-5 mr-2 text-primary" />
+              Category Management
+            </h2>
+            <button
+              onClick={() => setShowCategoryManager(!showCategoryManager)}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
+            >
+              {showCategoryManager ? "Hide" : "Manage Categories"}
+            </button>
+          </div>
+          {showCategoryManager && (
+            <CategoryManager onCategoriesChange={handleCategoriesChange} />
+          )}
+        </div>
+
         {/* Transactions List */}
         <div
           className={`bg-card border border-border rounded-lg transition-all duration-300 ${
             animationsReady ? "animate-bounce-in" : "opacity-0"
           }`}
-          style={{ animationDelay: animationsReady ? "0.3s" : "0s" }}
+          style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
         >
           <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between">
@@ -793,10 +871,18 @@ export default function CashflowPage() {
                             <span>
                               {getAccountName(transaction.account_id)}
                             </span>
-                            {transaction.category && (
+                            {getCategoryName(
+                              transaction.category_id,
+                              transaction.type
+                            ) && (
                               <>
                                 <span>•</span>
-                                <span>{transaction.category}</span>
+                                <span>
+                                  {getCategoryName(
+                                    transaction.category_id,
+                                    transaction.type
+                                  )}
+                                </span>
                               </>
                             )}
                           </>

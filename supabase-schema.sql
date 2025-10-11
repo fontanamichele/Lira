@@ -29,6 +29,18 @@ CREATE TABLE IF NOT EXISTS public.account_balances (
   UNIQUE(account_id, category, currency)
 );
 
+-- Create user categories table
+CREATE TABLE IF NOT EXISTS public.user_categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'taxation')),
+  name TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  -- Ensure unique category names per user and type
+  UNIQUE(user_id, type, name)
+);
+
 -- Create transactions table
 CREATE TABLE IF NOT EXISTS public.transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -39,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   amount DECIMAL(20,8) NOT NULL,
   currency TEXT NOT NULL,
   description TEXT,
-  category TEXT,
+  category_id UUID REFERENCES public.user_categories(id) ON DELETE SET NULL,
   date DATE NOT NULL,
   -- Transfer-specific fields
   to_account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE,
@@ -54,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.account_balances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies for profiles
@@ -116,6 +129,19 @@ CREATE POLICY "Users can delete own account balances" ON public.account_balances
     )
   );
 
+-- Create RLS policies for user_categories
+CREATE POLICY "Users can view own categories" ON public.user_categories
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own categories" ON public.user_categories
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own categories" ON public.user_categories
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own categories" ON public.user_categories
+  FOR DELETE USING (auth.uid() = user_id);
+
 -- Create RLS policies for transactions
 CREATE POLICY "Users can view own transactions" ON public.transactions
   FOR SELECT USING (auth.uid() = user_id);
@@ -144,6 +170,70 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create function to initialize default categories for new users
+CREATE OR REPLACE FUNCTION public.initialize_default_categories()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Insert default expense categories
+  INSERT INTO public.user_categories (user_id, type, name) VALUES
+    (NEW.id, 'expense', 'Food & Dining'),
+    (NEW.id, 'expense', 'Transportation'),
+    (NEW.id, 'expense', 'Shopping'),
+    (NEW.id, 'expense', 'Entertainment'),
+    (NEW.id, 'expense', 'Bills & Utilities'),
+    (NEW.id, 'expense', 'Healthcare'),
+    (NEW.id, 'expense', 'Education'),
+    (NEW.id, 'expense', 'Travel'),
+    (NEW.id, 'expense', 'Groceries'),
+    (NEW.id, 'expense', 'Gas'),
+    (NEW.id, 'expense', 'Insurance'),
+    (NEW.id, 'expense', 'Rent/Mortgage'),
+    (NEW.id, 'expense', 'Gift'),
+    (NEW.id, 'expense', 'Other')
+  ON CONFLICT (user_id, type, name) DO NOTHING;
+
+  -- Insert default income categories
+  INSERT INTO public.user_categories (user_id, type, name) VALUES
+    (NEW.id, 'income', 'Salary'),
+    (NEW.id, 'income', 'Freelance'),
+    (NEW.id, 'income', 'Investment'),
+    (NEW.id, 'income', 'Dividend'),
+    (NEW.id, 'income', 'Rental Income'),
+    (NEW.id, 'income', 'Business'),
+    (NEW.id, 'income', 'Bonus'),
+    (NEW.id, 'income', 'Commission'),
+    (NEW.id, 'income', 'Interest'),
+    (NEW.id, 'income', 'Gift'),
+    (NEW.id, 'income', 'Refund'),
+    (NEW.id, 'income', 'Other')
+  ON CONFLICT (user_id, type, name) DO NOTHING;
+
+  -- Insert default taxation categories
+  INSERT INTO public.user_categories (user_id, type, name) VALUES
+    (NEW.id, 'taxation', 'Income Tax'),
+    (NEW.id, 'taxation', 'Property Tax'),
+    (NEW.id, 'taxation', 'Sales Tax'),
+    (NEW.id, 'taxation', 'Capital Gains Tax'),
+    (NEW.id, 'taxation', 'Corporate Tax'),
+    (NEW.id, 'taxation', 'VAT'),
+    (NEW.id, 'taxation', 'Social Security'),
+    (NEW.id, 'taxation', 'Medicare'),
+    (NEW.id, 'taxation', 'State Tax'),
+    (NEW.id, 'taxation', 'Local Tax'),
+    (NEW.id, 'taxation', 'Estate Tax'),
+    (NEW.id, 'taxation', 'Gift Tax'),
+    (NEW.id, 'taxation', 'Other Tax')
+  ON CONFLICT (user_id, type, name) DO NOTHING;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger to initialize default categories
+CREATE OR REPLACE TRIGGER on_auth_user_created_categories
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.initialize_default_categories();
 
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()

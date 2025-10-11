@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ASSETS, AssetCategory } from "@/lib/assets";
 import { Database } from "@/types/database";
+import { getUserCategories } from "@/lib/categories";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type Account = Database["public"]["Tables"]["accounts"]["Row"];
 type AccountBalance = Database["public"]["Tables"]["account_balances"]["Row"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type UserCategory = Database["public"]["Tables"]["user_categories"]["Row"];
 
 interface AccountWithBalances extends Account {
   balances: AccountBalance[];
@@ -24,7 +26,7 @@ interface TransactionFormProps {
     amount: number;
     currency: string;
     description?: string | null;
-    category?: string | null;
+    category_id?: string | null;
     date: string;
     to_account_id?: string | null;
     to_account_balance_id?: string | null;
@@ -32,61 +34,15 @@ interface TransactionFormProps {
     to_currency?: string | null;
   }) => Promise<void>;
   onCancel: () => void;
+  refreshCategories?: boolean;
 }
-
-const EXPENSE_CATEGORIES = [
-  "Food & Dining",
-  "Transportation",
-  "Shopping",
-  "Entertainment",
-  "Bills & Utilities",
-  "Healthcare",
-  "Education",
-  "Travel",
-  "Groceries",
-  "Gas",
-  "Insurance",
-  "Rent/Mortgage",
-  "Gift",
-  "Other",
-];
-
-const TAXATION_CATEGORIES = [
-  "Income Tax",
-  "Property Tax",
-  "Sales Tax",
-  "Capital Gains Tax",
-  "Corporate Tax",
-  "VAT",
-  "Social Security",
-  "Medicare",
-  "State Tax",
-  "Local Tax",
-  "Estate Tax",
-  "Gift Tax",
-  "Other Tax",
-];
-
-const INCOME_SOURCES = [
-  "Salary",
-  "Freelance",
-  "Investment",
-  "Dividend",
-  "Rental Income",
-  "Business",
-  "Bonus",
-  "Commission",
-  "Interest",
-  "Gift",
-  "Refund",
-  "Other",
-];
 
 export default function TransactionForm({
   accounts,
   editingTransaction,
   onSubmit,
   onCancel,
+  refreshCategories = false,
 }: TransactionFormProps) {
   const [formData, setFormData] = useState({
     account_id: "",
@@ -95,7 +51,7 @@ export default function TransactionForm({
     amount: 0,
     currency: "USD",
     description: "",
-    category: "",
+    category_id: "",
     date: new Date().toISOString().split("T")[0],
     // Transfer-specific fields
     to_account_id: "",
@@ -114,6 +70,11 @@ export default function TransactionForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [amountInputValue, setAmountInputValue] = useState<string>("");
   const [toAmountInputValue, setToAmountInputValue] = useState<string>("");
+  const [categories, setCategories] = useState<{
+    income: UserCategory[];
+    expense: UserCategory[];
+    taxation: UserCategory[];
+  }>({ income: [], expense: [], taxation: [] });
   const supabase = createClient();
 
   const fetchUserProfile = useCallback(async () => {
@@ -135,9 +96,35 @@ export default function TransactionForm({
     }
   }, [supabase]);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      const [incomeCategories, expenseCategories, taxationCategories] =
+        await Promise.all([
+          getUserCategories("income"),
+          getUserCategories("expense"),
+          getUserCategories("taxation"),
+        ]);
+
+      setCategories({
+        income: incomeCategories,
+        expense: expenseCategories,
+        taxation: taxationCategories,
+      });
+    } catch (error) {
+      console.error("Error loading categories:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUserProfile();
-  }, [fetchUserProfile]);
+    loadCategories();
+  }, [fetchUserProfile, loadCategories]);
+
+  useEffect(() => {
+    if (refreshCategories) {
+      loadCategories();
+    }
+  }, [refreshCategories, loadCategories]);
 
   useEffect(() => {
     if (editingTransaction) {
@@ -148,7 +135,7 @@ export default function TransactionForm({
         amount: editingTransaction.amount,
         currency: editingTransaction.currency,
         description: editingTransaction.description || "",
-        category: editingTransaction.category || "",
+        category_id: editingTransaction.category_id || "",
         date: editingTransaction.date,
         to_account_id: editingTransaction.to_account_id || "",
         to_account_balance_id: editingTransaction.to_account_balance_id || "",
@@ -249,7 +236,7 @@ export default function TransactionForm({
       currency: "USD",
       amount: 0,
       description: "",
-      category: "",
+      category_id: "",
       date: new Date().toISOString().split("T")[0],
       to_account_id: "",
       to_account_balance_id: "",
@@ -511,7 +498,7 @@ export default function TransactionForm({
                 currency: "USD",
                 amount: 0,
                 description: "",
-                category: "",
+                category_id: "",
                 date: new Date().toISOString().split("T")[0],
                 to_account_id: "",
                 to_account_balance_id: "",
@@ -1043,9 +1030,9 @@ export default function TransactionForm({
                 </label>
                 <select
                   id="category"
-                  value={formData.category}
+                  value={formData.category_id}
                   onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value })
+                    setFormData({ ...formData, category_id: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-input rounded-md shadow-sm  bg-background text-foreground"
                 >
@@ -1056,14 +1043,9 @@ export default function TransactionForm({
                       ? "Select a tax type"
                       : "Select a category"}
                   </option>
-                  {(formData.type === "income"
-                    ? INCOME_SOURCES
-                    : formData.type === "taxation"
-                    ? TAXATION_CATEGORIES
-                    : EXPENSE_CATEGORIES
-                  ).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
+                  {categories[formData.type]?.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
                     </option>
                   ))}
                 </select>
