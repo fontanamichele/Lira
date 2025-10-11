@@ -362,7 +362,7 @@ export default function DashboardPage() {
           {/* Historical Chart */}
           <div
             className={`lg:col-span-2 transition-all duration-300 ${
-              animationsReady ? "animate-slide-in-up" : "opacity-0"
+              animationsReady ? "animate-bounce-in" : "opacity-0"
             }`}
             style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
           >
@@ -380,7 +380,7 @@ export default function DashboardPage() {
           {/* Asset Distribution Pie Chart */}
           <div
             className={`transition-all duration-300 ${
-              animationsReady ? "animate-slide-in-up" : "opacity-0"
+              animationsReady ? "animate-bounce-in" : "opacity-0"
             }`}
             style={{ animationDelay: animationsReady ? "0.5s" : "0s" }}
           >
@@ -398,7 +398,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div
             className={`card-elevated p-6 transition-all duration-300 ${
-              animationsReady ? "animate-slide-in-right" : "opacity-0"
+              animationsReady ? "animate-bounce-in" : "opacity-0"
             }`}
             style={{ animationDelay: animationsReady ? "0.7s" : "0s" }}
           >
@@ -427,7 +427,7 @@ export default function DashboardPage() {
                 {accounts.map((account, index) => (
                   <div
                     key={account.id}
-                    className="flex justify-between items-center p-4 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors duration-200 animate-slide-in"
+                    className="flex justify-between items-center p-4 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors duration-200 animate-bounce-in"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <div>
@@ -459,7 +459,7 @@ export default function DashboardPage() {
 
           <div
             className={`card-elevated p-6 transition-all duration-300 ${
-              animationsReady ? "animate-slide-in-right" : "opacity-0"
+              animationsReady ? "animate-bounce-in" : "opacity-0"
             }`}
             style={{ animationDelay: animationsReady ? "0.8s" : "0s" }}
           >
@@ -489,7 +489,7 @@ export default function DashboardPage() {
                 {recentTransactions.map((transaction, index) => (
                   <div
                     key={transaction.id}
-                    className="flex justify-between items-center p-4 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors duration-200 animate-slide-in"
+                    className="flex justify-between items-center p-4 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors duration-200 animate-bounce-in"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <div>

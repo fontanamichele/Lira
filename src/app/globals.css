@@ -469,3 +469,7 @@ textarea:focus {
   backdrop-filter: blur(10px);
   border: 1px solid hsl(var(--border) / 0.5);
 }
+
+.dark ::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}

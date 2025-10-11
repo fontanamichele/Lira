@@ -531,7 +531,7 @@ export default function CashflowPage() {
           title={
             editingTransaction ? "Edit Transaction" : "Add New Transaction"
           }
-          className="max-w-6xl"
+          className="max-w-7xl"
         >
           <TransactionForm
             accounts={accounts}
@@ -546,7 +546,7 @@ export default function CashflowPage() {
           isOpen={showFilterModal}
           onClose={() => setShowFilterModal(false)}
           title="Filter Transactions"
-          className="max-w-4xl"
+          className="max-w-5xl"
         >
           <div className="space-y-6">
             {/* Transaction Type Filter */}
@@ -645,7 +645,7 @@ export default function CashflowPage() {
         {/* Transactions List */}
         <div
           className={`bg-card border border-border rounded-lg transition-all duration-300 ${
-            animationsReady ? "animate-slide-in-up" : "opacity-0"
+            animationsReady ? "animate-bounce-in" : "opacity-0"
           }`}
           style={{ animationDelay: animationsReady ? "0.3s" : "0s" }}
         >
@@ -722,10 +722,12 @@ export default function CashflowPage() {
               <div
                 key={transaction.id}
                 className={`p-6 hover:bg-muted/50 transition-all duration-300 ${
-                  animationsReady ? "animate-slide-in-right" : "opacity-0"
+                  animationsReady ? "animate-bounce-in" : "opacity-0"
                 }`}
                 style={{
-                  animationDelay: animationsReady ? `${index * 0.05}s` : "0s",
+                  animationDelay: animationsReady
+                    ? `${0.3 + index * 0.05}s`
+                    : "0s",
                 }}
               >
                 <div className="flex items-center justify-between">

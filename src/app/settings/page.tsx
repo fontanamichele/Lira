@@ -199,7 +199,7 @@ export default function SettingsPage() {
         {/* Profile Settings */}
         <div
           className={`bg-card border border-border rounded-lg p-6 transition-all duration-300 ${
-            animationsReady ? "animate-slide-in-right" : "opacity-0"
+            animationsReady ? "animate-bounce-in" : "opacity-0"
           }`}
           style={{ animationDelay: animationsReady ? "0.1s" : "0s" }}
         >
@@ -271,7 +271,7 @@ export default function SettingsPage() {
         {/* Security Settings */}
         <div
           className={`bg-card border border-border rounded-lg p-6 transition-all duration-300 ${
-            animationsReady ? "animate-slide-in-right" : "opacity-0"
+            animationsReady ? "animate-bounce-in" : "opacity-0"
           }`}
           style={{ animationDelay: animationsReady ? "0.2s" : "0s" }}
         >
@@ -362,7 +362,7 @@ export default function SettingsPage() {
         {/* Theme Settings */}
         <div
           className={`bg-card border border-border rounded-lg p-6 transition-all duration-300 ${
-            animationsReady ? "animate-slide-in-right" : "opacity-0"
+            animationsReady ? "animate-bounce-in" : "opacity-0"
           }`}
           style={{ animationDelay: animationsReady ? "0.3s" : "0s" }}
         >
@@ -388,7 +388,7 @@ export default function SettingsPage() {
         {/* Account Information */}
         <div
           className={`bg-card border border-border rounded-lg p-6 transition-all duration-300 ${
-            animationsReady ? "animate-slide-in-right" : "opacity-0"
+            animationsReady ? "animate-bounce-in" : "opacity-0"
           }`}
           style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
         >

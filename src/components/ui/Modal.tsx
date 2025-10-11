@@ -50,7 +50,7 @@ export default function Modal({
 
       {/* Modal */}
       <div
-        className={`relative bg-card border border-border rounded-lg w-full max-w-md mx-4 animate-scale-in max-h-[90vh] flex flex-col ${className}`}
+        className={`relative bg-card border border-border rounded-lg w-full mx-4 animate-scale-in max-h-[90vh] flex flex-col ${className}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-border">
