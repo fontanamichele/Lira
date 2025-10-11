@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.account_balances (
   -- Category of the asset balance (currency, stock, etf, crypto)
   category TEXT NOT NULL DEFAULT 'currency' CHECK (category IN ('currency', 'stock', 'etf', 'crypto')),
   currency TEXT NOT NULL,
-  current_balance DECIMAL(15,2) NOT NULL DEFAULT 0,
+  current_balance DECIMAL(20,8) NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   -- Ensure only one balance per asset category and symbol per account
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE NOT NULL,
   account_balance_id UUID REFERENCES public.account_balances(id) ON DELETE CASCADE NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'transfer', 'taxation')),
-  amount DECIMAL(15,2) NOT NULL,
+  amount DECIMAL(20,8) NOT NULL,
   currency TEXT NOT NULL,
   description TEXT,
   category TEXT,
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   -- Transfer-specific fields
   to_account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE,
   to_account_balance_id UUID REFERENCES public.account_balances(id) ON DELETE CASCADE,
-  to_amount DECIMAL(15,2),
+  to_amount DECIMAL(20,8),
   to_currency TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

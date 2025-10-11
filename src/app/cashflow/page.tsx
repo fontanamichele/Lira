@@ -597,9 +597,20 @@ export default function CashflowPage() {
                 <input
                   type="date"
                   value={filters.startDate}
-                  onChange={(e) =>
-                    handleFilterChange("startDate", e.target.value)
-                  }
+                  max={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => {
+                    const startDate = e.target.value;
+                    handleFilterChange("startDate", startDate);
+
+                    // If end date is before start date, clear it
+                    if (
+                      filters.endDate &&
+                      startDate &&
+                      filters.endDate < startDate
+                    ) {
+                      handleFilterChange("endDate", "");
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
@@ -610,6 +621,8 @@ export default function CashflowPage() {
                 <input
                   type="date"
                   value={filters.endDate}
+                  max={new Date().toISOString().split("T")[0]}
+                  min={filters.startDate || undefined}
                   onChange={(e) =>
                     handleFilterChange("endDate", e.target.value)
                   }
@@ -721,9 +734,7 @@ export default function CashflowPage() {
             {currentTransactions.map((transaction, index) => (
               <div
                 key={transaction.id}
-                className={`p-6 hover:bg-muted/50 transition-all duration-300 ${
-                  animationsReady ? "animate-bounce-in" : "opacity-0"
-                }`}
+                className={`p-6 hover:bg-muted/50 transition-all`}
                 style={{
                   animationDelay: animationsReady
                     ? `${0.3 + index * 0.05}s`
