@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Database } from "@/types/database";
 import MainLayout from "@/components/layout/MainLayout";
 import TransactionForm from "@/components/TransactionForm";
+import Modal from "@/components/ui/Modal";
 import {
   Plus,
   Edit,
@@ -14,8 +15,18 @@ import {
   TrendingDown,
   Calendar,
   ArrowRightLeft,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  X,
+  FileText,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/currency";
+import {
+  formatCurrency,
+  getAssetRates,
+  convertCurrency,
+  AssetRates,
+} from "@/lib/currency";
 import { findAssetCategory } from "@/lib/assets";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
@@ -34,6 +45,25 @@ export default function CashflowPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const transactionsPerPage = 10;
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState({
+    type: "" as "" | "income" | "expense" | "transfer" | "taxation",
+    accountId: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [appliedFilters, setAppliedFilters] = useState({
+    type: "" as "" | "income" | "expense" | "transfer" | "taxation",
+    accountId: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [userProfile, setUserProfile] = useState<{
+    main_currency: string;
+  } | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<AssetRates | null>(null);
   const supabase = createClient();
 
   const fetchData = useCallback(async () => {
@@ -42,6 +72,15 @@ export default function CashflowPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+
+      // Fetch user profile to get main currency
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("main_currency")
+        .eq("id", user.id)
+        .single();
+
+      setUserProfile(profileData);
 
       // Fetch accounts with balances
       const { data: accountsData } = await supabase
@@ -79,6 +118,36 @@ export default function CashflowPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const fetchExchangeRates = useCallback(async () => {
+    if (!userProfile?.main_currency || transactions.length === 0) return;
+
+    try {
+      // Extract all unique currencies from transactions
+      const uniqueCurrencies = Array.from(
+        new Set([
+          ...transactions.map((t) => t.currency),
+          ...transactions
+            .filter((t) => t.to_currency)
+            .map((t) => t.to_currency!),
+        ])
+      );
+
+      const rates = await getAssetRates(
+        uniqueCurrencies,
+        userProfile.main_currency
+      );
+      setExchangeRates(rates);
+    } catch (error) {
+      console.error("Error fetching exchange rates:", error);
+    }
+  }, [userProfile?.main_currency, transactions]);
+
+  useEffect(() => {
+    if (userProfile?.main_currency) {
+      fetchExchangeRates();
+    }
+  }, [userProfile, fetchExchangeRates]);
 
   const handleSubmit = async (formData: {
     account_id: string;
@@ -131,7 +200,6 @@ export default function CashflowPage() {
         // Transfer: auto-create balance for destination asset only
         if (!destBalanceId && formData.to_currency && formData.to_account_id) {
           const destCategory = findAssetCategory(formData.to_currency);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: upsertDest, error: upsertDestErr } = await (
             supabase as any
           )
@@ -186,7 +254,6 @@ export default function CashflowPage() {
           updateData.to_currency = formData.to_currency;
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from("transactions")
           .update(updateData)
@@ -230,7 +297,6 @@ export default function CashflowPage() {
           insertData.to_currency = formData.to_currency;
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from("transactions")
           .insert(insertData);
@@ -239,6 +305,7 @@ export default function CashflowPage() {
       }
 
       resetForm();
+      setCurrentPage(1); // Reset to first page when adding new transaction
       fetchData();
     } catch (error) {
       console.error("Error saving transaction:", error);
@@ -267,6 +334,15 @@ export default function CashflowPage() {
         .eq("id", transactionId);
 
       if (error) throw error;
+
+      // Reset to first page if current page becomes empty
+      const newTotalPages = Math.ceil(
+        (transactions.length - 1) / transactionsPerPage
+      );
+      if (currentPage > newTotalPages && newTotalPages > 0) {
+        setCurrentPage(newTotalPages);
+      }
+
       fetchData();
     } catch (error) {
       console.error("Error deleting transaction:", error);
@@ -278,6 +354,106 @@ export default function CashflowPage() {
     setEditingTransaction(null);
   };
 
+  // Filter transactions
+  const filteredTransactions = transactions.filter((transaction) => {
+    // Filter by type
+    if (appliedFilters.type && transaction.type !== appliedFilters.type) {
+      return false;
+    }
+
+    // Filter by account
+    if (
+      appliedFilters.accountId &&
+      transaction.account_id !== appliedFilters.accountId
+    ) {
+      return false;
+    }
+
+    // Filter by date range
+    if (
+      appliedFilters.startDate &&
+      new Date(transaction.date) < new Date(appliedFilters.startDate)
+    ) {
+      return false;
+    }
+    if (
+      appliedFilters.endDate &&
+      new Date(transaction.date) > new Date(appliedFilters.endDate)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Pagination logic
+  const totalPages = Math.ceil(
+    filteredTransactions.length / transactionsPerPage
+  );
+  const startIndex = (currentPage - 1) * transactionsPerPage;
+  const endIndex = startIndex + transactionsPerPage;
+  const currentTransactions = filteredTransactions.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  // Filter handlers
+  const handleFilterChange = (key: keyof typeof filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    const emptyFilters = {
+      type: "" as "" | "income" | "expense" | "transfer" | "taxation",
+      accountId: "",
+      startDate: "",
+      endDate: "",
+    };
+    setFilters(emptyFilters);
+    setAppliedFilters(emptyFilters);
+    setCurrentPage(1);
+  };
+
+  const clearFormFilters = () => {
+    const emptyFilters = {
+      type: "" as "" | "income" | "expense" | "transfer" | "taxation",
+      accountId: "",
+      startDate: "",
+      endDate: "",
+    };
+    setFilters(emptyFilters);
+  };
+
+  const applyFilters = () => {
+    setAppliedFilters(filters);
+    setCurrentPage(1);
+    setShowFilterModal(false);
+  };
+
+  const openFilterModal = () => {
+    setFilters(appliedFilters); // Initialize modal with current applied filters
+    setShowFilterModal(true);
+  };
+
+  const hasActiveFilters =
+    appliedFilters.type ||
+    appliedFilters.accountId ||
+    appliedFilters.startDate ||
+    appliedFilters.endDate;
+
   const getAccountName = (accountId: string) => {
     const account = accounts.find((acc) => acc.id === accountId);
     return account ? account.name : "Unknown Account";
@@ -286,6 +462,28 @@ export default function CashflowPage() {
   const getToAccountName = (accountId: string) => {
     const account = accounts.find((acc) => acc.id === accountId);
     return account ? account.name : "Unknown Account";
+  };
+
+  const getConvertedValue = (
+    amount: number,
+    currency: string
+  ): string | null => {
+    if (
+      !exchangeRates ||
+      !userProfile?.main_currency ||
+      currency === userProfile.main_currency
+    ) {
+      return null;
+    }
+
+    const convertedAmount = convertCurrency(
+      amount,
+      currency,
+      userProfile.main_currency,
+      exchangeRates
+    );
+
+    return formatCurrency(convertedAmount, userProfile.main_currency);
   };
 
   if (loading) {
@@ -326,15 +524,123 @@ export default function CashflowPage() {
           </button>
         </div>
 
-        {/* Add/Edit Form */}
-        {showAddForm && (
+        {/* Add/Edit Modal */}
+        <Modal
+          isOpen={showAddForm}
+          onClose={resetForm}
+          title={
+            editingTransaction ? "Edit Transaction" : "Add New Transaction"
+          }
+          className="max-w-6xl"
+        >
           <TransactionForm
             accounts={accounts}
             editingTransaction={editingTransaction}
             onSubmit={handleSubmit}
             onCancel={resetForm}
           />
-        )}
+        </Modal>
+
+        {/* Filter Modal */}
+        <Modal
+          isOpen={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          title="Filter Transactions"
+          className="max-w-4xl"
+        >
+          <div className="space-y-6">
+            {/* Transaction Type Filter */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Transaction Type
+              </label>
+              <select
+                value={filters.type}
+                onChange={(e) => handleFilterChange("type", e.target.value)}
+                className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="">All Types</option>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+                <option value="transfer">Transfer</option>
+                <option value="taxation">Taxation</option>
+              </select>
+            </div>
+
+            {/* Account Filter */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Account
+              </label>
+              <select
+                value={filters.accountId}
+                onChange={(e) =>
+                  handleFilterChange("accountId", e.target.value)
+                }
+                className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="">All Accounts</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date Range Filter */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) =>
+                    handleFilterChange("startDate", e.target.value)
+                  }
+                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) =>
+                    handleFilterChange("endDate", e.target.value)
+                  }
+                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3 pt-4 border-t border-border">
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={clearFormFilters}
+                className="px-4 py-2 border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                Clear Filters
+              </button>
+              <button
+                onClick={applyFilters}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Transactions List */}
         <div
@@ -344,12 +650,75 @@ export default function CashflowPage() {
           style={{ animationDelay: animationsReady ? "0.3s" : "0s" }}
         >
           <div className="p-6 border-b border-border">
-            <h2 className="text-lg font-semibold text-foreground">
-              Recent Transactions
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">
+                Recent Transactions
+              </h2>
+              <div className="flex items-center space-x-3">
+                {/* Active Filters Display */}
+                {hasActiveFilters && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-muted-foreground">
+                      Filters:
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {appliedFilters.type && (
+                        <span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">
+                          Type: {appliedFilters.type}
+                        </span>
+                      )}
+                      {appliedFilters.accountId && (
+                        <span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">
+                          Account: {getAccountName(appliedFilters.accountId)}
+                        </span>
+                      )}
+                      {appliedFilters.startDate && (
+                        <span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">
+                          From:{" "}
+                          {new Date(
+                            appliedFilters.startDate
+                          ).toLocaleDateString()}
+                        </span>
+                      )}
+                      {appliedFilters.endDate && (
+                        <span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">
+                          To:{" "}
+                          {new Date(
+                            appliedFilters.endDate
+                          ).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={clearFilters}
+                      className="text-xs text-muted-foreground hover:text-foreground flex items-center"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Clear
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={openFilterModal}
+                  className={`flex items-center px-3 py-2 rounded-md border transition-colors ${
+                    hasActiveFilters
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
+                  {hasActiveFilters && (
+                    <span className="ml-2 px-2 py-0.5 bg-primary-foreground/20 text-xs rounded-full">
+                      Active
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
           <div className="divide-y divide-border">
-            {transactions.map((transaction, index) => (
+            {currentTransactions.map((transaction, index) => (
               <div
                 key={transaction.id}
                 className={`p-6 hover:bg-muted/50 transition-all duration-300 ${
@@ -377,7 +746,7 @@ export default function CashflowPage() {
                       ) : transaction.type === "expense" ? (
                         <TrendingDown className="h-5 w-5 text-red-500" />
                       ) : transaction.type === "taxation" ? (
-                        <TrendingDown className="h-5 w-5 text-yellow-500" />
+                        <FileText className="h-5 w-5 text-yellow-500" />
                       ) : (
                         <ArrowRightLeft className="h-5 w-5 text-blue-500" />
                       )}
@@ -405,18 +774,6 @@ export default function CashflowPage() {
                               {getAccountName(transaction.account_id)} →{" "}
                               {getToAccountName(transaction.to_account_id!)}
                             </span>
-                            <span>•</span>
-                            <span>
-                              {formatCurrency(
-                                transaction.amount,
-                                transaction.currency
-                              )}{" "}
-                              →{" "}
-                              {formatCurrency(
-                                transaction.to_amount!,
-                                transaction.to_currency!
-                              )}
-                            </span>
                           </>
                         ) : (
                           <>
@@ -442,32 +799,87 @@ export default function CashflowPage() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <p
-                      className={`font-semibold ${
-                        transaction.type === "income"
-                          ? "text-green-500"
-                          : transaction.type === "expense"
-                          ? "text-red-500"
-                          : transaction.type === "taxation"
-                          ? "text-yellow-500"
-                          : "text-blue-500"
-                      }`}
-                    >
+                    <div className="text-right">
+                      <p
+                        className={`font-semibold ${
+                          transaction.type === "income"
+                            ? "text-green-500"
+                            : transaction.type === "expense"
+                            ? "text-red-500"
+                            : transaction.type === "taxation"
+                            ? "text-yellow-500"
+                            : "text-blue-500"
+                        }`}
+                      >
+                        {transaction.type === "transfer"
+                          ? `${formatCurrency(
+                              transaction.amount,
+                              transaction.currency
+                            )} → ${formatCurrency(
+                              transaction.to_amount!,
+                              transaction.to_currency!
+                            )}`
+                          : transaction.type === "income"
+                          ? `+${formatCurrency(
+                              transaction.amount,
+                              transaction.currency
+                            )}`
+                          : `-${formatCurrency(
+                              transaction.amount,
+                              transaction.currency
+                            )}`}
+                      </p>
                       {transaction.type === "transfer"
-                        ? `${formatCurrency(
+                        ? // For transfers, show converted values for both currencies
+                          (getConvertedValue(
                             transaction.amount,
                             transaction.currency
-                          )}`
-                        : transaction.type === "income"
-                        ? `+${formatCurrency(
+                          ) ||
+                            getConvertedValue(
+                              transaction.to_amount!,
+                              transaction.to_currency!
+                            )) && (
+                            <p className="text-xs text-muted-foreground">
+                              {getConvertedValue(
+                                transaction.amount,
+                                transaction.currency
+                              ) &&
+                                getConvertedValue(
+                                  transaction.amount,
+                                  transaction.currency
+                                )}
+                              {getConvertedValue(
+                                transaction.amount,
+                                transaction.currency
+                              ) &&
+                                getConvertedValue(
+                                  transaction.to_amount!,
+                                  transaction.to_currency!
+                                ) &&
+                                " → "}
+                              {getConvertedValue(
+                                transaction.to_amount!,
+                                transaction.to_currency!
+                              ) &&
+                                getConvertedValue(
+                                  transaction.to_amount!,
+                                  transaction.to_currency!
+                                )}
+                            </p>
+                          )
+                        : // For other transaction types, show single converted value
+                          getConvertedValue(
                             transaction.amount,
                             transaction.currency
-                          )}`
-                        : `-${formatCurrency(
-                            transaction.amount,
-                            transaction.currency
-                          )}`}
-                    </p>
+                          ) && (
+                            <p className="text-xs text-muted-foreground">
+                              {getConvertedValue(
+                                transaction.amount,
+                                transaction.currency
+                              )}
+                            </p>
+                          )}
+                    </div>
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(transaction)}
@@ -487,26 +899,93 @@ export default function CashflowPage() {
               </div>
             ))}
           </div>
-        </div>
 
-        {transactions.length === 0 && (
-          <div className="text-center py-12">
-            <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">
-              No transactions yet
-            </h3>
-            <p className="text-muted-foreground mb-4">
-              Start tracking your income and expenses to see your cashflow
-            </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 mx-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Your First Transaction
-            </button>
-          </div>
-        )}
+          {/* No Transactions Message */}
+          {filteredTransactions.length === 0 && (
+            <div className="text-center py-12">
+              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                {transactions.length === 0
+                  ? "No transactions yet"
+                  : "No transactions match your filters"}
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                {transactions.length === 0
+                  ? "Start tracking your income and expenses to see your cashflow"
+                  : "Try adjusting your filters or clear them to see all transactions"}
+              </p>
+              <div className="flex justify-center space-x-3">
+                {transactions.length > 0 && hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="flex items-center px-4 py-2 border border-border rounded-md hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Filters
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {transactions.length === 0
+                    ? "Add Your First Transaction"
+                    : "Add Transaction"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {filteredTransactions.length > transactionsPerPage && (
+            <div className="p-6 border-t border-border">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to{" "}
+                  {Math.min(endIndex, filteredTransactions.length)} of{" "}
+                  {filteredTransactions.length} transactions
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                      (page) => (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            page === currentPage
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </MainLayout>
   );

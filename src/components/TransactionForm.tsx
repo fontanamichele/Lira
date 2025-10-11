@@ -470,198 +470,363 @@ export default function TransactionForm({
         !errors.to_amount));
 
   return (
-    <div className="bg-card border border-border rounded-lg p-6 animate-scale-in">
-      <h2 className="text-lg font-semibold text-foreground mb-4">
-        {editingTransaction ? "Edit Transaction" : "Add New Transaction"}
-      </h2>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Type and Account Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="type"
-              className="block text-sm font-medium text-foreground mb-2"
-            >
-              Type
-            </label>
-            <select
-              id="type"
-              value={formData.type}
-              onChange={(e) => {
-                const newType = e.target.value as
-                  | "income"
-                  | "expense"
-                  | "transfer"
-                  | "taxation";
-                setFormData({
-                  ...formData,
-                  type: newType,
-                  account_id: "",
-                  account_balance_id: "",
-                  currency: "USD",
-                  amount: 0,
-                  description: "",
-                  category: "",
-                  date: new Date().toISOString().split("T")[0],
-                  to_account_id: "",
-                  to_account_balance_id: "",
-                  to_amount: 0,
-                  to_currency: "USD",
-                  asset_category: "currency" as AssetCategory,
-                  asset_ticker: "USD",
-                  to_asset_category: "currency" as AssetCategory,
-                  to_asset_ticker: "USD",
-                });
-                // Clear all errors when type changes
-                setErrors({});
-              }}
-              className="w-full px-3 py-2 border border-input rounded-md shadow-sm  bg-background text-foreground"
-            >
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-              <option value="transfer">Transfer</option>
-              <option value="taxation">Taxation</option>
-            </select>
-          </div>
-
-          <div>
-            <label
-              htmlFor="account_id"
-              className="block text-sm font-medium text-foreground mb-2"
-            >
-              {formData.type === "transfer" ? "From Account *" : "Account *"}
-            </label>
-            <select
-              id="account_id"
-              value={formData.account_id}
-              onChange={(e) => handleAccountChange(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
-                errors.account_id ? "border-red-500" : "border-input"
-              }`}
-              required
-            >
-              <option value="">Select an account</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.balances.length} currencies)
-                </option>
-              ))}
-            </select>
-            {errors.account_id && (
-              <p className="text-red-500 text-sm mt-1">{errors.account_id}</p>
-            )}
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Type and Account Selection */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label
+            htmlFor="type"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
+            Type
+          </label>
+          <select
+            id="type"
+            value={formData.type}
+            onChange={(e) => {
+              const newType = e.target.value as
+                | "income"
+                | "expense"
+                | "transfer"
+                | "taxation";
+              setFormData({
+                ...formData,
+                type: newType,
+                account_id: "",
+                account_balance_id: "",
+                currency: "USD",
+                amount: 0,
+                description: "",
+                category: "",
+                date: new Date().toISOString().split("T")[0],
+                to_account_id: "",
+                to_account_balance_id: "",
+                to_amount: 0,
+                to_currency: "USD",
+                asset_category: "currency" as AssetCategory,
+                asset_ticker: "USD",
+                to_asset_category: "currency" as AssetCategory,
+                to_asset_ticker: "USD",
+              });
+              // Clear all errors when type changes
+              setErrors({});
+            }}
+            className="w-full px-3 py-2 border border-input rounded-md shadow-sm  bg-background text-foreground"
+          >
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+            <option value="transfer">Transfer</option>
+            <option value="taxation">Taxation</option>
+          </select>
         </div>
 
-        {/* Conditional Fields - Only show when account is selected */}
-        {isAccountSelected && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label
+            htmlFor="account_id"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
+            {formData.type === "transfer" ? "From Account *" : "Account *"}
+          </label>
+          <select
+            id="account_id"
+            value={formData.account_id}
+            onChange={(e) => handleAccountChange(e.target.value)}
+            className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
+              errors.account_id ? "border-red-500" : "border-input"
+            }`}
+            required
+          >
+            <option value="">Select an account</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name} ({account.balances.length} currencies)
+              </option>
+            ))}
+          </select>
+          {errors.account_id && (
+            <p className="text-red-500 text-sm mt-1">{errors.account_id}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Conditional Fields - Only show when account is selected */}
+      {isAccountSelected && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label
+                htmlFor="amount"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Amount *
+              </label>
+              <input
+                id="amount"
+                type="number"
+                step="0.00001"
+                min="0"
+                value={formData.amount || ""}
+                onChange={(e) =>
+                  handleAmountChange(parseFloat(e.target.value) || 0)
+                }
+                className={`w-full px-3 py-2 border rounded-md shadow-sm bg-background text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  errors.amount ? "border-red-500" : "border-input"
+                }`}
+                required
+              />
+              {errors.amount && (
+                <p className="text-red-500 text-sm mt-1">{errors.amount}</p>
+              )}
+            </div>
+
+            {formData.type === "expense" ||
+            formData.type === "taxation" ||
+            formData.type === "transfer" ? (
               <div>
                 <label
-                  htmlFor="amount"
+                  htmlFor="currency"
                   className="block text-sm font-medium text-foreground mb-2"
                 >
-                  Amount *
+                  {formData.type === "transfer"
+                    ? "From Currency *"
+                    : "Currency *"}
                 </label>
-                <input
-                  id="amount"
-                  type="number"
-                  step="0.00001"
-                  min="0"
-                  value={formData.amount || ""}
-                  onChange={(e) =>
-                    handleAmountChange(parseFloat(e.target.value) || 0)
-                  }
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm bg-background text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                    errors.amount ? "border-red-500" : "border-input"
+                <select
+                  id="currency"
+                  value={formData.account_balance_id}
+                  onChange={(e) => {
+                    if (e.target.value === "") {
+                      // Handle "Select a currency" option
+                      setFormData({
+                        ...formData,
+                        account_balance_id: "",
+                        currency: "",
+                      });
+                      // Clear currency error
+                      if (errors.currency) {
+                        setErrors((prev) => ({ ...prev, currency: "" }));
+                      }
+                    } else {
+                      const selectedBalance =
+                        getSelectedAccount()?.balances.find(
+                          (b) => b.id === e.target.value
+                        );
+                      if (selectedBalance) {
+                        handleCurrencyChange(
+                          selectedBalance.id,
+                          selectedBalance.currency
+                        );
+                      }
+                    }
+                  }}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
+                    errors.currency ? "border-red-500" : "border-input"
                   }`}
                   required
-                />
-                {errors.amount && (
-                  <p className="text-red-500 text-sm mt-1">{errors.amount}</p>
+                >
+                  <option value="">Select a currency</option>
+                  {getSelectedAccount()?.balances.map((balance) => (
+                    <option key={balance.id} value={balance.id}>
+                      {balance.currency} (Balance:{" "}
+                      {balance.current_balance.toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+                {errors.currency && (
+                  <p className="text-red-500 text-sm mt-1">{errors.currency}</p>
                 )}
               </div>
-
-              {formData.type === "expense" ||
-              formData.type === "taxation" ||
-              formData.type === "transfer" ? (
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label
-                    htmlFor="currency"
+                    htmlFor="asset_category"
                     className="block text-sm font-medium text-foreground mb-2"
                   >
-                    {formData.type === "transfer"
-                      ? "From Currency *"
-                      : "Currency *"}
+                    Asset Category *
                   </label>
                   <select
-                    id="currency"
-                    value={formData.account_balance_id}
-                    onChange={(e) => {
-                      if (e.target.value === "") {
-                        // Handle "Select a currency" option
-                        setFormData({
-                          ...formData,
-                          account_balance_id: "",
-                          currency: "",
-                        });
-                        // Clear currency error
-                        if (errors.currency) {
-                          setErrors((prev) => ({ ...prev, currency: "" }));
-                        }
-                      } else {
-                        const selectedBalance =
-                          getSelectedAccount()?.balances.find(
-                            (b) => b.id === e.target.value
-                          );
-                        if (selectedBalance) {
-                          handleCurrencyChange(
-                            selectedBalance.id,
-                            selectedBalance.currency
-                          );
-                        }
-                      }
-                    }}
+                    id="asset_category"
+                    value={formData.asset_category}
+                    onChange={(e) =>
+                      handleAssetCategoryChange(e.target.value as AssetCategory)
+                    }
                     className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
                       errors.currency ? "border-red-500" : "border-input"
                     }`}
                     required
                   >
-                    <option value="">Select a currency</option>
-                    {getSelectedAccount()?.balances.map((balance) => (
-                      <option key={balance.id} value={balance.id}>
-                        {balance.currency} (Balance:{" "}
-                        {balance.current_balance.toFixed(2)})
+                    {Object.keys(ASSETS).map((category) => (
+                      <option key={category} value={category}>
+                        {category.charAt(0).toUpperCase() + category.slice(1)}
                       </option>
                     ))}
                   </select>
-                  {errors.currency && (
+                </div>
+                <div>
+                  <label
+                    htmlFor="asset_ticker"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Asset *
+                  </label>
+                  <select
+                    id="asset_ticker"
+                    value={formData.asset_ticker}
+                    onChange={(e) => handleAssetTickerChange(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
+                      errors.currency ? "border-red-500" : "border-input"
+                    }`}
+                    required
+                  >
+                    <option value="">Select an asset</option>
+                    {ASSETS[formData.asset_category].map((asset) => (
+                      <option key={asset.ticker} value={asset.ticker}>
+                        {asset.ticker} - {asset.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {errors.currency && (
+                  <p className="text-red-500 text-sm mt-1 col-span-2">
+                    {errors.currency}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="date"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Date *
+              </label>
+              <input
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) =>
+                  setFormData({ ...formData, date: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-input rounded-md shadow-sm  bg-background text-foreground"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="description"
+              className="block text-sm font-medium text-foreground mb-2"
+            >
+              Description
+            </label>
+            <input
+              id="description"
+              type="text"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-input rounded-md shadow-sm placeholder-muted-foreground  bg-background text-foreground"
+              placeholder="What was this transaction for?"
+            />
+          </div>
+
+          {formData.type !== "transfer" && (
+            <div>
+              <label
+                htmlFor="category"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                {formData.type === "income"
+                  ? "Source"
+                  : formData.type === "taxation"
+                  ? "Tax Type"
+                  : "Category"}
+              </label>
+              <select
+                id="category"
+                value={formData.category}
+                onChange={(e) =>
+                  setFormData({ ...formData, category: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-input rounded-md shadow-sm  bg-background text-foreground"
+              >
+                <option value="">
+                  {formData.type === "income"
+                    ? "Select a source"
+                    : formData.type === "taxation"
+                    ? "Select a tax type"
+                    : "Select a category"}
+                </option>
+                {(formData.type === "income"
+                  ? INCOME_SOURCES
+                  : formData.type === "taxation"
+                  ? TAXATION_CATEGORIES
+                  : EXPENSE_CATEGORIES
+                ).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Transfer-specific fields */}
+          {formData.type === "transfer" && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="to_account_id"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    To Account *
+                  </label>
+                  <select
+                    id="to_account_id"
+                    value={formData.to_account_id}
+                    onChange={(e) => handleToAccountChange(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
+                      errors.to_account_id ? "border-red-500" : "border-input"
+                    }`}
+                    required
+                  >
+                    <option value="">Select destination account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} ({account.balances.length} currencies)
+                      </option>
+                    ))}
+                  </select>
+                  {errors.to_account_id && (
                     <p className="text-red-500 text-sm mt-1">
-                      {errors.currency}
+                      {errors.to_account_id}
                     </p>
                   )}
                 </div>
-              ) : (
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label
-                      htmlFor="asset_category"
+                      htmlFor="to_asset_category"
                       className="block text-sm font-medium text-foreground mb-2"
                     >
-                      Asset Category *
+                      To Asset Category *
                     </label>
                     <select
-                      id="asset_category"
-                      value={formData.asset_category}
+                      id="to_asset_category"
+                      value={formData.to_asset_category}
                       onChange={(e) =>
-                        handleAssetCategoryChange(
+                        handleToAssetCategoryChange(
                           e.target.value as AssetCategory
                         )
                       }
                       className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
-                        errors.currency ? "border-red-500" : "border-input"
+                        errors.to_currency ? "border-red-500" : "border-input"
                       }`}
                       required
                     >
@@ -674,270 +839,94 @@ export default function TransactionForm({
                   </div>
                   <div>
                     <label
-                      htmlFor="asset_ticker"
+                      htmlFor="to_asset_ticker"
                       className="block text-sm font-medium text-foreground mb-2"
                     >
-                      Asset *
+                      To Asset *
                     </label>
                     <select
-                      id="asset_ticker"
-                      value={formData.asset_ticker}
-                      onChange={(e) => handleAssetTickerChange(e.target.value)}
+                      id="to_asset_ticker"
+                      value={formData.to_asset_ticker}
+                      onChange={(e) =>
+                        handleToAssetTickerChange(e.target.value)
+                      }
                       className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
-                        errors.currency ? "border-red-500" : "border-input"
+                        errors.to_currency ? "border-red-500" : "border-input"
                       }`}
                       required
                     >
-                      <option value="">Select an asset</option>
-                      {ASSETS[formData.asset_category].map((asset) => (
+                      <option value="">Select destination asset</option>
+                      {ASSETS[formData.to_asset_category].map((asset) => (
                         <option key={asset.ticker} value={asset.ticker}>
                           {asset.ticker} - {asset.name}
                         </option>
                       ))}
                     </select>
                   </div>
-                  {errors.currency && (
+                  {errors.to_currency && (
                     <p className="text-red-500 text-sm mt-1 col-span-2">
-                      {errors.currency}
+                      {errors.to_currency}
                     </p>
                   )}
                 </div>
-              )}
+              </div>
 
               <div>
                 <label
-                  htmlFor="date"
+                  htmlFor="to_amount"
                   className="block text-sm font-medium text-foreground mb-2"
                 >
-                  Date *
+                  Amount Received *
                 </label>
                 <input
-                  id="date"
-                  type="date"
-                  value={formData.date}
+                  id="to_amount"
+                  type="number"
+                  step="0.00001"
+                  min="0"
+                  value={formData.to_amount || ""}
                   onChange={(e) =>
-                    setFormData({ ...formData, date: e.target.value })
+                    handleToAmountChange(parseFloat(e.target.value) || 0)
                   }
-                  className="w-full px-3 py-2 border border-input rounded-md shadow-sm  bg-background text-foreground"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm bg-background text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    errors.to_amount ? "border-red-500" : "border-input"
+                  }`}
                   required
                 />
+                {errors.to_amount && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.to_amount}
+                  </p>
+                )}
               </div>
-            </div>
+            </>
+          )}
+        </>
+      )}
 
-            <div>
-              <label
-                htmlFor="description"
-                className="block text-sm font-medium text-foreground mb-2"
-              >
-                Description
-              </label>
-              <input
-                id="description"
-                type="text"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-input rounded-md shadow-sm placeholder-muted-foreground  bg-background text-foreground"
-                placeholder="What was this transaction for?"
-              />
-            </div>
-
-            {formData.type !== "transfer" && (
-              <div>
-                <label
-                  htmlFor="category"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  {formData.type === "income"
-                    ? "Source"
-                    : formData.type === "taxation"
-                    ? "Tax Type"
-                    : "Category"}
-                </label>
-                <select
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-input rounded-md shadow-sm  bg-background text-foreground"
-                >
-                  <option value="">
-                    {formData.type === "income"
-                      ? "Select a source"
-                      : formData.type === "taxation"
-                      ? "Select a tax type"
-                      : "Select a category"}
-                  </option>
-                  {(formData.type === "income"
-                    ? INCOME_SOURCES
-                    : formData.type === "taxation"
-                    ? TAXATION_CATEGORIES
-                    : EXPENSE_CATEGORIES
-                  ).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Transfer-specific fields */}
-            {formData.type === "transfer" && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      htmlFor="to_account_id"
-                      className="block text-sm font-medium text-foreground mb-2"
-                    >
-                      To Account *
-                    </label>
-                    <select
-                      id="to_account_id"
-                      value={formData.to_account_id}
-                      onChange={(e) => handleToAccountChange(e.target.value)}
-                      className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
-                        errors.to_account_id ? "border-red-500" : "border-input"
-                      }`}
-                      required
-                    >
-                      <option value="">Select destination account</option>
-                      {accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name} ({account.balances.length} currencies)
-                        </option>
-                      ))}
-                    </select>
-                    {errors.to_account_id && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {errors.to_account_id}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label
-                        htmlFor="to_asset_category"
-                        className="block text-sm font-medium text-foreground mb-2"
-                      >
-                        To Asset Category *
-                      </label>
-                      <select
-                        id="to_asset_category"
-                        value={formData.to_asset_category}
-                        onChange={(e) =>
-                          handleToAssetCategoryChange(
-                            e.target.value as AssetCategory
-                          )
-                        }
-                        className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
-                          errors.to_currency ? "border-red-500" : "border-input"
-                        }`}
-                        required
-                      >
-                        {Object.keys(ASSETS).map((category) => (
-                          <option key={category} value={category}>
-                            {category.charAt(0).toUpperCase() +
-                              category.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="to_asset_ticker"
-                        className="block text-sm font-medium text-foreground mb-2"
-                      >
-                        To Asset *
-                      </label>
-                      <select
-                        id="to_asset_ticker"
-                        value={formData.to_asset_ticker}
-                        onChange={(e) =>
-                          handleToAssetTickerChange(e.target.value)
-                        }
-                        className={`w-full px-3 py-2 border rounded-md shadow-sm  bg-background text-foreground ${
-                          errors.to_currency ? "border-red-500" : "border-input"
-                        }`}
-                        required
-                      >
-                        <option value="">Select destination asset</option>
-                        {ASSETS[formData.to_asset_category].map((asset) => (
-                          <option key={asset.ticker} value={asset.ticker}>
-                            {asset.ticker} - {asset.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {errors.to_currency && (
-                      <p className="text-red-500 text-sm mt-1 col-span-2">
-                        {errors.to_currency}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="to_amount"
-                    className="block text-sm font-medium text-foreground mb-2"
-                  >
-                    Amount Received *
-                  </label>
-                  <input
-                    id="to_amount"
-                    type="number"
-                    step="0.00001"
-                    min="0"
-                    value={formData.to_amount || ""}
-                    onChange={(e) =>
-                      handleToAmountChange(parseFloat(e.target.value) || 0)
-                    }
-                    className={`w-full px-3 py-2 border rounded-md shadow-sm bg-background text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                      errors.to_amount ? "border-red-500" : "border-input"
-                    }`}
-                    required
-                  />
-                  {errors.to_amount && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.to_amount}
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        <div className="flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!isFormValid || isSubmitting}
-            className={`px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-              isFormValid && !isSubmitting
-                ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
-            }`}
-          >
-            {isSubmitting
-              ? "Processing..."
-              : editingTransaction
-              ? "Update Transaction"
-              : "Add Transaction"}
-          </button>
-        </div>
-      </form>
-    </div>
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!isFormValid || isSubmitting}
+          className={`px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+            isFormValid && !isSubmitting
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-muted text-muted-foreground cursor-not-allowed"
+          }`}
+        >
+          {isSubmitting
+            ? "Processing..."
+            : editingTransaction
+            ? "Update Transaction"
+            : "Add Transaction"}
+        </button>
+      </div>
+    </form>
   );
 }

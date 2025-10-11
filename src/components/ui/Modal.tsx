@@ -41,7 +41,7 @@ export default function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -50,10 +50,10 @@ export default function Modal({
 
       {/* Modal */}
       <div
-        className={`relative bg-card border border-border rounded-lg p-6 w-full max-w-md mx-4 animate-scale-in ${className}`}
+        className={`relative bg-card border border-border rounded-lg w-full max-w-md mx-4 animate-scale-in max-h-[90vh] flex flex-col ${className}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-border">
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
           <button
             onClick={onClose}
@@ -64,7 +64,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        {children}
+        <div className="p-6 pt-4 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );
