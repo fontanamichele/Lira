@@ -182,15 +182,16 @@ export default function DashboardPage() {
     }, 0);
   };
 
-  // Calculate total income and expenses converted to main currency for the last month
+  // Calculate total income and expenses converted to main currency for the current month
   const calculateTotalIncome = (): number => {
     if (!exchangeRates || !profile?.main_currency) return 0;
 
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
 
     return allTransactions
-      .filter((t) => t.type === "income" && new Date(t.date) >= oneMonthAgo)
+      .filter((t) => t.type === "income" && new Date(t.date) >= startOfMonth)
       .reduce((total, transaction) => {
         const convertedAmount = convertCurrency(
           transaction.amount,
@@ -205,11 +206,76 @@ export default function DashboardPage() {
   const calculateTotalExpenses = (): number => {
     if (!exchangeRates || !profile?.main_currency) return 0;
 
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
 
     return allTransactions
-      .filter((t) => t.type === "expense" && new Date(t.date) >= oneMonthAgo)
+      .filter((t) => t.type === "expense" && new Date(t.date) >= startOfMonth)
+      .reduce((total, transaction) => {
+        const convertedAmount = convertCurrency(
+          transaction.amount,
+          transaction.currency,
+          profile?.main_currency || "USD",
+          exchangeRates
+        );
+        return total + convertedAmount;
+      }, 0);
+  };
+
+  const calculatePreviousMonthIncome = (): number => {
+    if (!exchangeRates || !profile?.main_currency) return 0;
+
+    const now = new Date();
+    const startOfCurrentMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    );
+    const startOfPreviousMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1
+    );
+
+    return allTransactions
+      .filter((t) => {
+        if (t.type !== "income") return false;
+        const date = new Date(t.date);
+        return date >= startOfPreviousMonth && date < startOfCurrentMonth;
+      })
+      .reduce((total, transaction) => {
+        const convertedAmount = convertCurrency(
+          transaction.amount,
+          transaction.currency,
+          profile?.main_currency || "USD",
+          exchangeRates
+        );
+        return total + convertedAmount;
+      }, 0);
+  };
+
+  const calculatePreviousMonthExpenses = (): number => {
+    if (!exchangeRates || !profile?.main_currency) return 0;
+
+    const now = new Date();
+    const startOfCurrentMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    );
+    const startOfPreviousMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1
+    );
+
+    return allTransactions
+      .filter((t) => {
+        if (t.type !== "expense") return false;
+        const date = new Date(t.date);
+        return date >= startOfPreviousMonth && date < startOfCurrentMonth;
+      })
       .reduce((total, transaction) => {
         const convertedAmount = convertCurrency(
           transaction.amount,
@@ -226,6 +292,17 @@ export default function DashboardPage() {
   const totalBalance = calculateTotalBalance();
   const totalIncome = calculateTotalIncome();
   const totalExpenses = calculateTotalExpenses();
+  const previousIncome = calculatePreviousMonthIncome();
+  const previousExpenses = calculatePreviousMonthExpenses();
+
+  const incomeChangePercentage =
+    previousIncome > 0
+      ? ((totalIncome - previousIncome) / previousIncome) * 100
+      : null;
+  const expensesChangePercentage =
+    previousExpenses > 0
+      ? ((totalExpenses - previousExpenses) / previousExpenses) * 100
+      : null;
 
   if (loading) {
     return (
@@ -301,15 +378,29 @@ export default function DashboardPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Income (Last Month)
+                  Income (This Month)
                 </p>
                 <div className="flex items-center space-x-2 h-8">
                   {ratesLoading ? (
                     <div className="h-5 w-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    <p className="text-2xl font-bold text-foreground leading-8">
-                      {formatCurrency(totalIncome, mainCurrency)}
-                    </p>
+                    <>
+                      <p className="text-2xl font-bold text-foreground leading-8">
+                        {formatCurrency(totalIncome, mainCurrency)}
+                      </p>
+                      {incomeChangePercentage !== null && (
+                        <span
+                          className={`text-sm font-semibold px-2 py-0.5 rounded-full ${
+                            incomeChangePercentage >= 0
+                              ? "text-green-500 bg-green-500/10"
+                              : "text-red-500 bg-red-500/10"
+                          }`}
+                        >
+                          {incomeChangePercentage >= 0 ? "+" : ""}
+                          {Math.round(incomeChangePercentage)}%
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -328,15 +419,29 @@ export default function DashboardPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Expenses (Last Month)
+                  Expenses (This Month)
                 </p>
                 <div className="flex items-center space-x-2 h-8">
                   {ratesLoading ? (
                     <div className="h-5 w-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    <p className="text-2xl font-bold text-foreground leading-8">
-                      {formatCurrency(totalExpenses, mainCurrency)}
-                    </p>
+                    <>
+                      <p className="text-2xl font-bold text-foreground leading-8">
+                        {formatCurrency(totalExpenses, mainCurrency)}
+                      </p>
+                      {expensesChangePercentage !== null && (
+                        <span
+                          className={`text-sm font-semibold px-2 py-0.5 rounded-full ${
+                            expensesChangePercentage >= 0
+                              ? "text-red-500 bg-red-500/10"
+                              : "text-green-500 bg-green-500/10"
+                          }`}
+                        >
+                          {expensesChangePercentage >= 0 ? "+" : ""}
+                          {Math.round(expensesChangePercentage)}%
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
