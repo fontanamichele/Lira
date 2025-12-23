@@ -21,7 +21,7 @@ export interface HistoricalDataPoint {
 }
 
 export interface HistoricalCalculationOptions {
-  period: "7d" | "30d" | "90d" | "1y";
+  period: "30d" | "180d" | "ytd" | "1y" | "5y" | "all";
   interval: "1h" | "4h" | "1d";
   mainCurrency: string;
 }
@@ -325,12 +325,45 @@ async function createSimpleHistoricalChart(
     }
 
     // Calculate the number of days based on period
-    const days =
-      period === "7d" ? 7 : period === "30d" ? 30 : period === "90d" ? 90 : 365;
+    let days: number;
+
+    const today = new Date();
+
+    if (period === "30d") {
+      days = 30;
+    } else if (period === "180d") {
+      days = 180;
+    } else if (period === "ytd") {
+      const startOfYear = new Date(today.getFullYear(), 0, 1);
+      const diffMs = today.getTime() - startOfYear.getTime();
+      days = Math.max(
+        1,
+        Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1 // include today
+      );
+    } else if (period === "1y") {
+      days = 365;
+    } else if (period === "5y") {
+      days = 365 * 5;
+    } else {
+      // "all" – from oldest transaction to today
+      if (transactions.length > 0) {
+        const oldestTransactionTime = transactions.reduce((min, t) => {
+          const time = new Date(t.date).getTime();
+          return isNaN(time) ? min : Math.min(min, time);
+        }, today.getTime());
+
+        const diffMs = today.getTime() - oldestTransactionTime;
+        days = Math.max(
+          1,
+          Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1 // include today
+        );
+      } else {
+        days = 365;
+      }
+    }
 
     // Create data points for the requested period
     const historicalData: HistoricalDataPoint[] = [];
-    const today = new Date();
 
     // Group transactions by date
     const transactionsByDate = new Map<string, Transaction[]>();

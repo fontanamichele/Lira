@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Line,
   XAxis,
@@ -135,6 +135,29 @@ export default function HistoricalChart({
 
   const chartData = formatHistoricalDataForChart(historicalData);
 
+  const { yMin, yMax } = useMemo(() => {
+    if (!chartData.length) {
+      return { yMin: 0, yMax: 1 };
+    }
+
+    let min = chartData[0].value;
+    let max = chartData[0].value;
+
+    for (const point of chartData) {
+      if (typeof point.value === "number") {
+        min = Math.min(min, point.value);
+        max = Math.max(max, point.value);
+      }
+    }
+
+    const range = max - min;
+    const padding = (range || Math.max(max, 1)) * 0.1; // add 10% headroom
+    const lowerBound = Math.max(min - padding, 0); // never go below zero
+    const upperBound = max + padding || 1;
+
+    return { yMin: lowerBound, yMax: upperBound };
+  }, [chartData]);
+
   const formatTooltipValue = (value: number) => {
     return formatCurrency(value, mainCurrency);
   };
@@ -169,18 +192,24 @@ export default function HistoricalChart({
     });
   };
 
-  const periodOptions = [
-    { value: "7d", label: "7 Days" },
-    { value: "30d", label: "30 Days" },
-    { value: "90d", label: "90 Days" },
-    { value: "1y", label: "1 Year" },
-  ];
+  const periodOptions: { value: HistoricalCalculationOptions["period"]; label: string }[] =
+    [
+      { value: "30d", label: "30D" },
+      { value: "180d", label: "6M" },
+      { value: "ytd", label: "YTD" },
+      { value: "1y", label: "1Y" },
+      { value: "5y", label: "5Y" },
+      { value: "all", label: "ALL" },
+    ];
 
-  const handlePeriodChange = (period: "7d" | "30d" | "90d" | "1y") => {
+  const handlePeriodChange = (
+    period: HistoricalCalculationOptions["period"]
+  ) => {
     setOptions((prev) => ({
       ...prev,
       period,
-      interval: period === "7d" ? "4h" : "1d",
+      // Use daily interval for all current ranges
+      interval: "1d",
     }));
   };
 
@@ -246,9 +275,7 @@ export default function HistoricalChart({
               <button
                 key={option.value}
                 onClick={() =>
-                  handlePeriodChange(
-                    option.value as "7d" | "30d" | "90d" | "1y"
-                  )
+                  handlePeriodChange(option.value)
                 }
                 disabled={loading}
                 className={`px-3 py-1 text-sm rounded-md transition-colors ${
@@ -309,6 +336,7 @@ export default function HistoricalChart({
                 className="text-xs"
                 axisLine={false}
                 tickLine={false}
+                domain={[yMin, yMax]}
               />
               <Tooltip content={<CustomTooltip />} />
               <Area
