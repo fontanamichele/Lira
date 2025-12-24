@@ -66,11 +66,66 @@ export async function calculateHistoricalHoldings(
       });
     }
 
+    // Calculate the first transaction date (if any)
+    let firstTransactionDate: Date | null = null;
+    if (transactions.length > 0) {
+      const oldestTransactionTime = transactions.reduce((min, t) => {
+        const time = new Date(t.date).getTime();
+        return isNaN(time) ? min : Math.min(min, time);
+      }, new Date().getTime());
+      firstTransactionDate = new Date(oldestTransactionTime);
+      firstTransactionDate.setHours(0, 0, 0, 0);
+    }
+
+    // For "all" period, calculate the actual date range and use a supported period
+    let periodToFetch = period;
+    let startDate: Date | null = null;
+    
+    if (period === "all" && firstTransactionDate) {
+      startDate = new Date(firstTransactionDate);
+      const today = new Date();
+      const diffDays = Math.ceil((today.getTime() - firstTransactionDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Use the longest supported period that covers the range
+      if (diffDays <= 365) {
+        periodToFetch = "1y";
+      } else if (diffDays <= 365 * 5) {
+        periodToFetch = "5y";
+      } else {
+        // For very long periods, use 5y and we'll handle missing dates
+        periodToFetch = "5y";
+      }
+    } else if (firstTransactionDate) {
+      // For other periods, calculate the period start date and adjust if needed
+      const today = new Date();
+      let periodStartDate = new Date(today);
+      
+      // Calculate what the start date would be for this period
+      if (period === "30d") {
+        periodStartDate.setDate(periodStartDate.getDate() - 30);
+      } else if (period === "180d") {
+        periodStartDate.setDate(periodStartDate.getDate() - 180);
+      } else if (period === "ytd") {
+        periodStartDate = new Date(today.getFullYear(), 0, 1);
+      } else if (period === "1y") {
+        periodStartDate.setFullYear(periodStartDate.getFullYear() - 1);
+      } else if (period === "5y") {
+        periodStartDate.setFullYear(periodStartDate.getFullYear() - 5);
+      }
+      
+      periodStartDate.setHours(0, 0, 0, 0);
+      
+      // If the period start date is before the first transaction, use first transaction date instead
+      if (periodStartDate < firstTransactionDate) {
+        startDate = new Date(firstTransactionDate);
+      }
+    }
+
     // Fetch historical exchange rates
     const historicalRates = await getHistoricalAssetRates(
       uniqueAssets,
       mainCurrency,
-      period,
+      periodToFetch,
       interval
     );
 
@@ -157,12 +212,59 @@ export async function calculateHistoricalHoldings(
       return [];
     }
 
+    // Generate data points for each day from start date to today
+    // If startDate is set (either from "all" period or because period starts before first transaction),
+    // generate daily data points. Otherwise, use the timestamps from historical rates.
+    let datesToProcess: Date[] = [];
+    
+    if (startDate) {
+      // Generate daily data points from start date to today
+      const today = new Date();
+      today.setHours(23, 59, 59, 999); // End of today
+      const currentDate = new Date(startDate);
+      currentDate.setHours(0, 0, 0, 0); // Start of day
+      
+      while (currentDate <= today) {
+        datesToProcess.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    } else {
+      // For other periods without adjustment, use the timestamps from historical rates
+      datesToProcess = sortedTimestamps.map(ts => new Date(ts));
+    }
+
+    // Helper function to find the closest historical rate for a given date
+    const findClosestRates = (targetDate: Date): AssetRates => {
+      const targetTime = targetDate.getTime();
+      let closestTimestamp: string | null = null;
+      let closestDiff = Infinity;
+
+      // Find the closest timestamp (before or at the target date)
+      for (const timestamp of sortedTimestamps) {
+        const timestampTime = new Date(timestamp).getTime();
+        const diff = targetTime - timestampTime;
+        
+        if (diff >= 0 && diff < closestDiff) {
+          closestDiff = diff;
+          closestTimestamp = timestamp;
+        }
+      }
+
+      // If we found a close timestamp, use its rates
+      if (closestTimestamp && ratesByTimestamp.has(closestTimestamp)) {
+        return ratesByTimestamp.get(closestTimestamp)!;
+      }
+
+      // Fallback to current rates if no historical rate found
+      return currentRates;
+    };
+
     // Calculate historical portfolio values
     const historicalData: HistoricalDataPoint[] = [];
 
-    for (const timestamp of sortedTimestamps) {
-      const rates = ratesByTimestamp.get(timestamp)!;
-      const date = new Date(timestamp).toISOString().split("T")[0];
+    for (const date of datesToProcess) {
+      const rates = findClosestRates(date);
+      const dateString = date.toISOString().split("T")[0];
 
       // Calculate portfolio value at this point in time
       const portfolioValue = calculatePortfolioValueAtDate(
@@ -170,11 +272,11 @@ export async function calculateHistoricalHoldings(
         transactions,
         rates,
         mainCurrency,
-        new Date(timestamp)
+        date
       );
 
       const dataPoint: HistoricalDataPoint = {
-        date,
+        date: dateString,
         totalValue: portfolioValue,
       };
 
@@ -190,7 +292,7 @@ export async function calculateHistoricalHoldings(
             ),
             rates,
             mainCurrency,
-            new Date(timestamp)
+            date
           );
 
           const key = `${account.name}_${balance.currency}`;
@@ -199,6 +301,12 @@ export async function calculateHistoricalHoldings(
       });
 
       historicalData.push(dataPoint);
+    }
+
+    // Remove the first data point if it has a value of 0
+    // This prevents showing a day before the first transaction
+    if (historicalData.length > 0 && historicalData[0].totalValue === 0) {
+      historicalData.shift();
     }
 
     return historicalData;
@@ -324,42 +432,45 @@ async function createSimpleHistoricalChart(
       }
     }
 
-    // Calculate the number of days based on period
-    let days: number;
-
+    // Calculate the first transaction date (if any)
     const today = new Date();
+    let firstTransactionDate: Date | null = null;
+    if (transactions.length > 0) {
+      const oldestTransactionTime = transactions.reduce((min, t) => {
+        const time = new Date(t.date).getTime();
+        return isNaN(time) ? min : Math.min(min, time);
+      }, today.getTime());
+      firstTransactionDate = new Date(oldestTransactionTime);
+      firstTransactionDate.setHours(0, 0, 0, 0);
+    }
 
+    // Calculate the start date for the period
+    let startDate: Date = new Date(today);
+    
     if (period === "30d") {
-      days = 30;
+      startDate.setDate(startDate.getDate() - 30);
     } else if (period === "180d") {
-      days = 180;
+      startDate.setDate(startDate.getDate() - 180);
     } else if (period === "ytd") {
-      const startOfYear = new Date(today.getFullYear(), 0, 1);
-      const diffMs = today.getTime() - startOfYear.getTime();
-      days = Math.max(
-        1,
-        Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1 // include today
-      );
+      startDate = new Date(today.getFullYear(), 0, 1);
     } else if (period === "1y") {
-      days = 365;
+      startDate.setFullYear(startDate.getFullYear() - 1);
     } else if (period === "5y") {
-      days = 365 * 5;
+      startDate.setFullYear(startDate.getFullYear() - 5);
     } else {
       // "all" – from oldest transaction to today
-      if (transactions.length > 0) {
-        const oldestTransactionTime = transactions.reduce((min, t) => {
-          const time = new Date(t.date).getTime();
-          return isNaN(time) ? min : Math.min(min, time);
-        }, today.getTime());
-
-        const diffMs = today.getTime() - oldestTransactionTime;
-        days = Math.max(
-          1,
-          Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1 // include today
-        );
+      if (firstTransactionDate) {
+        startDate = new Date(firstTransactionDate);
       } else {
-        days = 365;
+        startDate.setDate(startDate.getDate() - 365);
       }
+    }
+    
+    startDate.setHours(0, 0, 0, 0);
+
+    // If the period start date is before the first transaction, use first transaction date instead
+    if (firstTransactionDate && startDate < firstTransactionDate) {
+      startDate = new Date(firstTransactionDate);
     }
 
     // Create data points for the requested period
@@ -378,10 +489,10 @@ async function createSimpleHistoricalChart(
     // Calculate portfolio value over time by working backwards from current balances
     // This is more accurate than summing transactions forward
 
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateString = date.toISOString().split("T")[0];
+    // Generate data points from start date to today
+    const currentDate = new Date(startDate);
+    while (currentDate <= today) {
+      const dateString = currentDate.toISOString().split("T")[0];
 
       // Calculate what the portfolio value would have been at this date
       let portfolioValue = 0;
@@ -418,6 +529,15 @@ async function createSimpleHistoricalChart(
         date: dateString,
         totalValue: portfolioValue,
       });
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Remove the first data point if it has a value of 0
+    // This prevents showing a day before the first transaction
+    if (historicalData.length > 0 && historicalData[0].totalValue === 0) {
+      historicalData.shift();
     }
 
     return historicalData;

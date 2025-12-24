@@ -55,10 +55,53 @@ export default function HistoricalChart({
     mainCurrency,
   }));
 
+  // Cache for historical data by period and data hash
+  const dataCacheRef = useRef<
+    Map<
+      string,
+      {
+        data: HistoricalDataPoint[];
+        dataHash: string;
+      }
+    >
+  >(new Map());
+
+  // Create a hash of accounts and transactions to detect changes
+  const createDataHash = useCallback(() => {
+    return JSON.stringify({
+      accountsLength: accounts.length,
+      transactionsLength: transactions.length,
+      accountsHash: accounts.map((a) => a.id).sort().join(","),
+      transactionsHash: transactions
+        .map((t) => `${t.id}-${t.date}`)
+        .sort()
+        .join(","),
+      mainCurrency,
+    });
+  }, [accounts, transactions, mainCurrency]);
+
   // Use ref to track parameters to prevent double fetches
   const lastParamsRef = useRef<string>("");
 
   useEffect(() => {
+    // Only proceed if we have data
+    if (accounts.length === 0 || transactions.length === 0) {
+      return;
+    }
+
+    const dataHash = createDataHash();
+    const cacheKey = `${options.period}-${options.interval}-${mainCurrency}`;
+    const cached = dataCacheRef.current.get(cacheKey);
+
+    // Check if we have cached data for this period with the same data hash
+    if (cached && cached.dataHash === dataHash) {
+      // Use cached data
+      setHistoricalData(cached.data);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     // Create a unique key for the current parameters
     const paramsKey = JSON.stringify({
       accountsLength: accounts.length,
@@ -68,12 +111,8 @@ export default function HistoricalChart({
       mainCurrency: options.mainCurrency,
     });
 
-    // Only fetch if we have data and parameters have actually changed
-    if (
-      accounts.length > 0 &&
-      transactions.length > 0 &&
-      paramsKey !== lastParamsRef.current
-    ) {
+    // Only fetch if parameters have actually changed
+    if (paramsKey !== lastParamsRef.current) {
       lastParamsRef.current = paramsKey;
 
       // Fetch data directly in useEffect
@@ -87,6 +126,13 @@ export default function HistoricalChart({
             transactions,
             options
           );
+          
+          // Store in cache
+          dataCacheRef.current.set(cacheKey, {
+            data,
+            dataHash,
+          });
+          
           setHistoricalData(data);
           // Force chart re-render to trigger animation
           setChartKey((prev) => prev + 1);
@@ -103,10 +149,23 @@ export default function HistoricalChart({
 
       fetchData();
     }
-  }, [accounts, transactions, options]);
+  }, [accounts, transactions, options, mainCurrency, createDataHash]);
 
   const fetchHistoricalData = useCallback(async () => {
     if (accounts.length === 0 || transactions.length === 0) {
+      return;
+    }
+
+    const dataHash = createDataHash();
+    const cacheKey = `${options.period}-${options.interval}-${mainCurrency}`;
+    const cached = dataCacheRef.current.get(cacheKey);
+
+    // Check if we have cached data for this period with the same data hash
+    if (cached && cached.dataHash === dataHash) {
+      // Use cached data
+      setHistoricalData(cached.data);
+      setError(null);
+      setLoading(false);
       return;
     }
 
@@ -119,6 +178,13 @@ export default function HistoricalChart({
         transactions,
         options
       );
+      
+      // Store in cache
+      dataCacheRef.current.set(cacheKey, {
+        data,
+        dataHash,
+      });
+      
       setHistoricalData(data);
       // Force chart re-render to trigger animation
       setChartKey((prev) => prev + 1);
@@ -131,7 +197,7 @@ export default function HistoricalChart({
     } finally {
       setLoading(false);
     }
-  }, [accounts, transactions, options]);
+  }, [accounts, transactions, options, mainCurrency, createDataHash]);
 
   const chartData = formatHistoricalDataForChart(historicalData);
 
@@ -161,6 +227,30 @@ export default function HistoricalChart({
   const formatTooltipValue = (value: number) => {
     return formatCurrency(value, mainCurrency);
   };
+
+  // Compact formatter for Y-axis labels to prevent cutoff
+  const formatYAxisLabel = useMemo(() => {
+    // Get currency symbol from formatCurrency
+    const sampleFormatted = formatCurrency(1000, mainCurrency);
+    const currencyMatch = sampleFormatted.match(/^[^\d\s.,]+/);
+    const currencySymbol = currencyMatch ? currencyMatch[0] : "$";
+
+    return (value: number) => {
+      const absValue = Math.abs(value);
+
+      // Use abbreviated format for large values
+      if (absValue >= 1000000) {
+        return `${currencySymbol}${(value / 1000000).toFixed(1)}M`;
+      } else if (absValue >= 1000) {
+        return `${currencySymbol}${(value / 1000).toFixed(1)}K`;
+      } else if (absValue >= 1) {
+        return `${currencySymbol}${value.toFixed(0)}`;
+      } else {
+        // For very small values, show more precision
+        return `${currencySymbol}${value.toFixed(2)}`;
+      }
+    };
+  }, [mainCurrency]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length > 0) {
@@ -217,22 +307,24 @@ export default function HistoricalChart({
 
   if (error) {
     return (
-      <div className={`card-elevated p-6 ${className}`}>
+      <div className={`card-elevated p-6 flex flex-col h-full ${className}`}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-foreground flex items-center">
             <LineChart className="h-5 w-5 mr-2 text-primary" />
             Portfolio History
           </h2>
         </div>
-        <div className="text-center py-8">
-          <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-2">{error}</p>
-          <button
-            onClick={fetchHistoricalData}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Retry
-          </button>
+        <div className="flex-1 flex items-center justify-center min-h-0">
+          <div className="text-center">
+            <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground mb-2">{error}</p>
+            <button
+              onClick={fetchHistoricalData}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -240,14 +332,14 @@ export default function HistoricalChart({
 
   if (chartData.length === 0 && !loading) {
     return (
-      <div className={`card-elevated p-6 ${className}`}>
+      <div className={`card-elevated p-6 flex flex-col h-full ${className}`}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-foreground flex items-center">
             <LineChart className="h-5 w-5 mr-2 text-primary" />
             Portfolio History
           </h2>
         </div>
-        <div className="h-80 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-0">
           <div className="text-center">
             <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
@@ -261,7 +353,7 @@ export default function HistoricalChart({
   }
 
   return (
-    <div className={`card-elevated p-6 ${className}`}>
+    <div className={`card-elevated p-6 flex flex-col h-full ${className}`}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-foreground flex items-center">
           <LineChart className="h-5 w-5 mr-2 text-primary" />
@@ -291,7 +383,7 @@ export default function HistoricalChart({
         </div>
       </div>
 
-      <div className="h-80">
+      <div className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -300,7 +392,7 @@ export default function HistoricalChart({
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              margin={{ top: 5, right: 20, left: 5, bottom: 5 }}
               key={`chart-${chartKey}-${chartData.length}-${options.period}`}
             >
               <defs>
@@ -332,11 +424,12 @@ export default function HistoricalChart({
                 tickLine={false}
               />
               <YAxis
-                tickFormatter={(value) => formatCurrency(value, mainCurrency)}
+                tickFormatter={formatYAxisLabel}
                 className="text-xs"
                 axisLine={false}
                 tickLine={false}
                 domain={[yMin, yMax]}
+                width={60}
               />
               <Tooltip content={<CustomTooltip />} />
               <Area

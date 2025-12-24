@@ -17,10 +17,12 @@ import {
 import Link from "next/link";
 import {
   getAssetRates,
+  getHistoricalAssetRates,
   convertCurrency,
   formatCurrency,
   AssetRates,
   extractAssetsFromBalances,
+  CurrencyPriceData,
 } from "@/lib/currency";
 
 type Account = Database["public"]["Tables"]["accounts"]["Row"];
@@ -43,6 +45,8 @@ export default function DashboardPage() {
   const [animationsReady, setAnimationsReady] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<AssetRates | null>(null);
   const [ratesLoading, setRatesLoading] = useState(false);
+  const [previousMonthBalance, setPreviousMonthBalance] = useState<number | null>(null);
+  const [previousMonthRatesLoading, setPreviousMonthRatesLoading] = useState(false);
   const supabase = createClient();
 
   const fetchExchangeRates = useCallback(async () => {
@@ -287,6 +291,170 @@ export default function DashboardPage() {
       }, 0);
   };
 
+  // Calculate balance at a specific date (helper function)
+  const calculateBalanceAtDate = (
+    balance: AccountBalance,
+    assetTransactions: Transaction[],
+    targetDate: Date
+  ): number => {
+    const relevantTransactions = assetTransactions.filter(
+      (t) => new Date(t.date) <= targetDate
+    );
+
+    let balanceAtDate = 0;
+
+    relevantTransactions.forEach((transaction) => {
+      if (transaction.type === "income") {
+        balanceAtDate += transaction.amount;
+      } else if (
+        transaction.type === "expense" ||
+        transaction.type === "taxation"
+      ) {
+        balanceAtDate -= transaction.amount;
+      } else if (transaction.type === "transfer") {
+        if (transaction.to_account_balance_id === balance.id) {
+          balanceAtDate += transaction.to_amount || 0;
+        } else if (transaction.account_balance_id === balance.id) {
+          balanceAtDate -= transaction.amount;
+        }
+      }
+    });
+
+    return balanceAtDate;
+  };
+
+  // Fetch and calculate previous month balance with historical rates
+  const fetchPreviousMonthBalance = useCallback(async () => {
+    if (!profile?.main_currency || accounts.length === 0 || allTransactions.length === 0) {
+      return;
+    }
+
+    setPreviousMonthRatesLoading(true);
+    try {
+      const now = new Date();
+      const endOfLastMonth = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        0,
+        23,
+        59,
+        59,
+        999
+      );
+
+      // Get all unique assets from balances
+      const allBalances = accounts.flatMap((account) => account.balances);
+      const uniqueAssets = extractAssetsFromBalances(allBalances);
+
+      if (uniqueAssets.length === 0) {
+        setPreviousMonthRatesLoading(false);
+        return;
+      }
+
+      // Fetch historical rates for the end of last month
+      // We'll fetch rates for a period that includes the end of last month
+      const historicalRates = await getHistoricalAssetRates(
+        uniqueAssets,
+        profile.main_currency,
+        "30d",
+        "1d"
+      );
+
+      // Find rates closest to the end of last month
+      const endOfLastMonthTime = endOfLastMonth.getTime();
+      const ratesByAsset = new Map<string, number>();
+
+      // Group historical rates by asset and find the closest to end of last month
+      uniqueAssets.forEach((asset) => {
+        const assetRates = historicalRates.filter((rate) => {
+          let assetSymbol = rate.ticker;
+          if (rate.ticker.includes("USD=X")) {
+            assetSymbol = rate.ticker.replace("USD=X", "");
+          } else if (rate.ticker.includes("-USD")) {
+            assetSymbol = rate.ticker.replace("-USD", "");
+          }
+          return assetSymbol === asset;
+        });
+
+        if (assetRates.length > 0) {
+          // Find the rate closest to end of last month
+          let closestRate = assetRates[0];
+          let closestDiff = Math.abs(
+            new Date(closestRate.date || closestRate.timestamp || 0).getTime() -
+              endOfLastMonthTime
+          );
+
+          assetRates.forEach((rate) => {
+            const rateDate = new Date(rate.date || rate.timestamp || 0);
+            const diff = Math.abs(rateDate.getTime() - endOfLastMonthTime);
+            if (diff < closestDiff && rateDate <= endOfLastMonth) {
+              closestDiff = diff;
+              closestRate = rate;
+            }
+          });
+
+          const rateValue = closestRate.close || closestRate.price;
+          if (rateValue !== undefined) {
+            ratesByAsset.set(asset, rateValue);
+          }
+        }
+      });
+
+      // If we don't have historical rates, use current rates as fallback
+      const ratesToUse: AssetRates = { [profile.main_currency]: 1 };
+      uniqueAssets.forEach((asset) => {
+        if (ratesByAsset.has(asset)) {
+          ratesToUse[asset] = ratesByAsset.get(asset)!;
+        } else if (exchangeRates && exchangeRates[asset]) {
+          // Fallback to current rates
+          ratesToUse[asset] = exchangeRates[asset];
+        } else {
+          ratesToUse[asset] = 1;
+        }
+      });
+
+      // Calculate total balance at end of last month
+      let totalBalanceAtDate = 0;
+
+      accounts.forEach((account) => {
+        account.balances.forEach((balance) => {
+          const assetTransactions = allTransactions.filter(
+            (t) =>
+              t.account_balance_id === balance.id ||
+              t.to_account_balance_id === balance.id
+          );
+
+          const balanceAtDate = calculateBalanceAtDate(
+            balance,
+            assetTransactions,
+            endOfLastMonth
+          );
+
+          const convertedAmount = convertCurrency(
+            balanceAtDate,
+            balance.currency,
+            profile.main_currency || "USD",
+            ratesToUse
+          );
+          totalBalanceAtDate += convertedAmount;
+        });
+      });
+
+      setPreviousMonthBalance(totalBalanceAtDate);
+    } catch (error) {
+      console.error("Error fetching previous month balance:", error);
+      setPreviousMonthBalance(null);
+    } finally {
+      setPreviousMonthRatesLoading(false);
+    }
+  }, [profile?.main_currency, accounts, allTransactions, exchangeRates]);
+
+  useEffect(() => {
+    if (exchangeRates && accounts.length > 0 && allTransactions.length > 0) {
+      fetchPreviousMonthBalance();
+    }
+  }, [exchangeRates, accounts, allTransactions, fetchPreviousMonthBalance]);
+
   // Get main currency for display
   const mainCurrency = profile?.main_currency || "USD";
   const totalBalance = calculateTotalBalance();
@@ -302,6 +470,10 @@ export default function DashboardPage() {
   const expensesChangePercentage =
     previousExpenses > 0
       ? ((totalExpenses - previousExpenses) / previousExpenses) * 100
+      : null;
+  const balanceChangePercentage =
+    previousMonthBalance !== null && previousMonthBalance > 0
+      ? ((totalBalance - previousMonthBalance) / previousMonthBalance) * 100
       : null;
 
   if (loading) {
@@ -354,12 +526,26 @@ export default function DashboardPage() {
                   Total Balance
                 </p>
                 <div className="flex items-center space-x-2 h-8">
-                  {ratesLoading ? (
+                  {ratesLoading || previousMonthRatesLoading ? (
                     <div className="h-5 w-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    <p className="text-2xl font-bold text-foreground leading-8">
-                      {formatCurrency(totalBalance, mainCurrency)}
-                    </p>
+                    <>
+                      <p className="text-2xl font-bold text-foreground leading-8">
+                        {formatCurrency(totalBalance, mainCurrency)}
+                      </p>
+                      {balanceChangePercentage !== null && (
+                        <span
+                          className={`text-sm font-semibold px-2 py-0.5 rounded-full ${
+                            balanceChangePercentage >= 0
+                              ? "text-green-500 bg-green-500/10"
+                              : "text-red-500 bg-red-500/10"
+                          }`}
+                        >
+                          {balanceChangePercentage >= 0 ? "+" : ""}
+                          {Math.round(balanceChangePercentage)}%
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -464,10 +650,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
           {/* Historical Chart */}
           <div
-            className={`lg:col-span-2 transition-all duration-300 ${
+            className={`lg:col-span-2 transition-all duration-300 flex ${
               animationsReady ? "animate-bounce-in" : "opacity-0"
             }`}
             style={{ animationDelay: animationsReady ? "0.4s" : "0s" }}
@@ -477,13 +663,14 @@ export default function DashboardPage() {
                 accounts={accounts}
                 transactions={allTransactions}
                 mainCurrency={mainCurrency}
+                className="w-full"
               />
             )}
           </div>
 
           {/* Asset Distribution Pie Chart */}
           <div
-            className={`transition-all duration-300 ${
+            className={`transition-all duration-300 flex ${
               animationsReady ? "animate-bounce-in" : "opacity-0"
             }`}
             style={{ animationDelay: animationsReady ? "0.5s" : "0s" }}
@@ -493,6 +680,7 @@ export default function DashboardPage() {
                 accounts={accounts}
                 exchangeRates={exchangeRates}
                 mainCurrency={mainCurrency}
+                className="w-full"
               />
             )}
           </div>
